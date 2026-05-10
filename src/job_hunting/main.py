@@ -1,109 +1,24 @@
-#!/usr/bin/env python
-import sys
-import warnings
+from dotenv import load_dotenv
 
-from datetime import datetime
-
-from job_hunting.crew import JobHunting
-
-warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
-
-# This main file is intended to be a way for you to run your
-# crew locally, so refrain from adding unnecessary logic into this file.
-# Replace with inputs you want to test with, it will automatically
-# interpolate any tasks and agents information
-
-def run():
-    """
-    Run the crew.
-    """
-    inputs = {
-        'topic': 'AI LLMs',
-        'current_year': str(datetime.now().year)
-    }
-
-    try:
-        JobHunting().crew().kickoff(inputs=inputs)
-    except Exception as e:
-        raise Exception(f"An error occurred while running the crew: {e}")
-
-
-def train():
-    """
-    Train the crew for a given number of iterations.
-    """
-    inputs = {
-        "topic": "AI LLMs",
-        'current_year': str(datetime.now().year)
-    }
-    try:
-        JobHunting().crew().train(n_iterations=int(sys.argv[1]), filename=sys.argv[2], inputs=inputs)
-
-    except Exception as e:
-        raise Exception(f"An error occurred while training the crew: {e}")
-
-def replay():
-    """
-    Replay the crew execution from a specific task.
-    """
-    try:
-        JobHunting().crew().replay(task_id=sys.argv[1])
-
-    except Exception as e:
-        raise Exception(f"An error occurred while replaying the crew: {e}")
-
-def test():
-    """
-    Test the crew execution and returns the results.
-    """
-    inputs = {
-        "topic": "AI LLMs",
-        "current_year": str(datetime.now().year)
-    }
-
-    try:
-        JobHunting().crew().test(n_iterations=int(sys.argv[1]), eval_llm=sys.argv[2], inputs=inputs)
-
-    except Exception as e:
-        raise Exception(f"An error occurred while testing the crew: {e}")
-
-def run_with_trigger():
-    """
-    Run the crew with trigger payload.
-    """
-    import json
-
-    if len(sys.argv) < 2:
-        raise Exception("No trigger payload provided. Please provide JSON payload as argument.")
-
-    try:
-        trigger_payload = json.loads(sys.argv[1])
-    except json.JSONDecodeError:
-        raise Exception("Invalid JSON payload provided as argument")
-
-    inputs = {
-        "crewai_trigger_payload": trigger_payload,
-        "topic": "",
-        "current_year": ""
-    }
-
-    try:
-        result = JobHunting().crew().kickoff(inputs=inputs)
-        return result
-    except Exception as e:
-        raise Exception(f"An error occurred while running the crew with trigger: {e}")
+load_dotenv()
 
 
 def run_discovery() -> None:
     """Cron entry point — discover and score new vacancies, send Telegram approval requests."""
-    raise NotImplementedError("run_discovery will be implemented in Task 13")
+    from job_hunting.flows.discovery_flow import DiscoveryFlow
+    DiscoveryFlow().kickoff()
 
 
 def run_bot() -> None:
     """Long-running entry point — start the Telegram bot."""
-    raise NotImplementedError("run_bot will be implemented in Task 13")
+    from job_hunting.bot.telegram_bot import run
+    run()
 
 
 def run_advisor() -> None:
     """Long-running entry point — start the Chainlit Career Advisor."""
-    raise NotImplementedError("run_advisor will be implemented in Task 13")
+    import subprocess
+    import sys
+    import os
+    advisor_path = os.path.join(os.path.dirname(__file__), "advisor", "app.py")
+    subprocess.run([sys.executable, "-m", "chainlit", "run", advisor_path], check=True)
