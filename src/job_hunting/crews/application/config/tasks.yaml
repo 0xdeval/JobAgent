@@ -58,19 +58,19 @@ cv_task:
        the required quality bar for format, density, and tone.
     2. Using the profile brief from profile_brief_task, generate a tailored JSON object
        with this exact structure:
-       {
+       {{
          "summary": "Tailored summary max 430 chars for this role and company",
          "workExperienceIds": ["id1", "id2", "id3", "id4"],
-         "workExperienceDescriptions": {
+         "workExperienceDescriptions": {{
            "id1": ["Achievement with **metric**", "Achievement 2"],
            "id2": ["Achievement with **metric**"]
-         },
+         }},
          "projectIds": ["project-id-1"],
-         "projectDescriptions": {
+         "projectDescriptions": {{
            "project-id-1": ["Tailored project description"]
-         },
+         }},
          "skills": "Tailored skills list for this vacancy"
-       }
+       }}
        IDs come from work-experience.md: lowercase company name, spaces to hyphens,
        remove special chars. E.g. "Blockscout" → "blockscout".
        Include at least 4 work experiences. Bold key metrics with **double asterisks**.

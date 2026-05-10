@@ -14,16 +14,16 @@ scrape_vacancies_task:
        d. Generate a vacancy ID as: lowercase company name and title, spaces and
           special chars replaced with hyphens, double-hyphen between company and title.
           Example: "Acme Corp" + "Senior PM" -> "acme-corp--senior-pm"
-       e. Write a JSON file to data/{today}/vacancies/{vacancy_id}.json with this exact schema:
-          {
-            "id": "{vacancy_id}",
-            "company": "{company_name}",
-            "title": "{job_title}",
-            "url": "{job_url}",
-            "description": "{full_job_description}",
-            "questions": ["{question1}", "{question2}"],
-            "scraped_at": "{ISO8601 timestamp}"
-          }
+       e. Write a JSON file to data/{today}/vacancies/<vacancy_id>.json with this exact schema:
+          {{
+            "id": "<vacancy_id>",
+            "company": "<company_name>",
+            "title": "<job_title>",
+            "url": "<job_url>",
+            "description": "<full_job_description>",
+            "questions": ["<question1>", "<question2>"],
+            "scraped_at": "<ISO8601 timestamp>"
+          }}
           If there are no application questions, use an empty list [].
     4. Return a JSON list of all vacancy IDs that were successfully saved.
   expected_output: >
@@ -36,7 +36,7 @@ score_vacancies_task:
     Today's date is {today}. Score all newly discovered vacancies.
 
     The previous task returned a list of vacancy IDs (e.g. ["acme-corp--senior-pm"]).
-    For each vacancy ID, read the file at data/{today}/vacancies/{vacancy_id}.json
+    For each vacancy ID, read the file at data/{today}/vacancies/<vacancy_id>.json
     using FileReadTool with the exact path.
     Also read knowledge/search-criteria.md and knowledge/profile/profile-summary.md.
 
@@ -48,17 +48,17 @@ score_vacancies_task:
          for one, false otherwise.
       c. Set status to "skipped" if score is clearly below criteria (do not send to Telegram).
          Otherwise set status to "pending_approval".
-      d. Write a JSON file to data/{today}/scores/{vacancy_id}.json with this schema:
-         {
-           "vacancy_id": "{vacancy_id}",
+      d. Write a JSON file to data/{today}/scores/<vacancy_id>.json with this schema:
+         {{
+           "vacancy_id": "<vacancy_id>",
            "date": "{today}",
-           "company": "{company_name}",
-           "title": "{job_title}",
-           "score": {integer 0-100},
-           "reasoning": "{brief explanation of score}",
+           "company": "<company_name>",
+           "title": "<job_title>",
+           "score": <integer 0-100>,
+           "reasoning": "<brief explanation of score>",
            "status": "pending_approval",
-           "requires_cover_letter": {true or false}
-         }
+           "requires_cover_letter": <true or false>
+         }}
     Return a JSON list of score file paths for vacancies with status "pending_approval".
   expected_output: >
     A JSON list of score file paths for qualifying vacancies, e.g.
