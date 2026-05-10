@@ -1,0 +1,118 @@
+profile_brief_task:
+  description: >
+    You are preparing an application for this vacancy:
+    - Company: {company}
+    - Title: {title}
+    - Vacancy ID: {vacancy_id}
+    - Description: {description}
+    - Requires cover letter: {requires_cover_letter}
+
+    Read all profile files from knowledge/profile/ using FileReadTool:
+    - profile-summary.md
+    - work-experience.md
+    - personal-projects.md
+    - general-info.md
+    - public-performance.md
+    - values-and-interests.md
+
+    Produce a structured profile brief (max 600 words) with:
+    1. Candidate overview — 2-3 sentence summary tailored to this role
+    2. Top 4+ relevant work experiences with their key metrics and achievements
+    3. Most relevant 1-2 personal projects
+    4. Skills alignment with the vacancy requirements
+    5. requires_cover_letter: {requires_cover_letter} (pass through from input)
+  expected_output: >
+    A structured profile brief in markdown, including a requires_cover_letter field
+    at the end (true or false). This brief will be used by all subsequent agents.
+  agent: profile_steward
+
+qa_task:
+  description: >
+    Based on the profile brief from the previous task and this vacancy description:
+    {description}
+
+    1. Extract all explicit application questions from the vacancy description.
+       These are questions the employer wants answered (e.g. "Why do you want to work here?",
+       "Describe your experience with X").
+    2. For each question, write a genuine, specific answer using only facts from the
+       profile brief. Use real metrics when available. No generic phrases.
+    3. If no questions are found, write "No application questions in this vacancy."
+    4. Write the output to data/{date}/applications/{vacancy_id}/qa-answers.md
+       using FileWriterTool.
+  expected_output: >
+    Markdown file with each question as a heading followed by the answer,
+    saved to data/{date}/applications/{vacancy_id}/qa-answers.md.
+  agent: qa_analyst
+  context:
+    - profile_brief_task
+
+cv_task:
+  description: >
+    Generate a tailored CV for this vacancy:
+    - Company: {company}
+    - Title: {title}
+    - Description: {description}
+
+    Steps:
+    1. Read personalized-outreach/best-practices/cv.md with FileReadTool to understand
+       the required quality bar for format, density, and tone.
+    2. Using the profile brief from profile_brief_task, generate a tailored JSON object
+       with this exact structure:
+       {
+         "summary": "Tailored summary max 430 chars for this role and company",
+         "workExperienceIds": ["id1", "id2", "id3", "id4"],
+         "workExperienceDescriptions": {
+           "id1": ["Achievement with **metric**", "Achievement 2"],
+           "id2": ["Achievement with **metric**"]
+         },
+         "projectIds": ["project-id-1"],
+         "projectDescriptions": {
+           "project-id-1": ["Tailored project description"]
+         },
+         "skills": "Tailored skills list for this vacancy"
+       }
+       IDs come from work-experience.md: lowercase company name, spaces to hyphens,
+       remove special chars. E.g. "Blockscout" → "blockscout".
+       Include at least 4 work experiences. Bold key metrics with **double asterisks**.
+       Apply the anti-slop filter: no "spearheaded", "leveraged", "streamlined", etc.
+       No PascalCase in sentences.
+    3. Use CV Generator tool with the JSON string and output path:
+       data/{date}/applications/{vacancy_id}/cv.tex
+    4. The tool returns the PDF path on success or an error. If error, fix the JSON and retry.
+  expected_output: >
+    The path to the generated cv.pdf file, e.g.
+    "data/2026-05-10/applications/acme-corp--senior-pm/cv.pdf"
+  agent: cv_architect
+  context:
+    - profile_brief_task
+
+cover_letter_task:
+  description: >
+    Generate a tailored cover letter for this vacancy:
+    - Company: {company}
+    - Title: {title}
+    - Description: {description}
+
+    IMPORTANT: First check the requires_cover_letter field in the profile brief
+    from profile_brief_task. If it is false, output exactly:
+    "Cover letter not required for this vacancy." and stop — do not generate anything.
+
+    If requires_cover_letter is true:
+    1. Read personalized-outreach/best-practices/cover-letter.md with FileReadTool.
+    2. Using the profile brief, draft three sections:
+       - intro: 60-80 words. Open with a specific hook tied to the company or role —
+         not "I am writing to apply". Mirror the company's language, then bridge to
+         your background. No PascalCase, no AI slop.
+       - main_body: 150-200 words total. 2-3 experiences with real metrics. Lead with
+         the outcome, not the task. Keep it direct and human.
+       - conclusion: 40-60 words. Soft call to action. Genuine interest.
+    3. Use Cover Letter Generator tool with intro, main_body, conclusion, and output path:
+       data/{date}/applications/{vacancy_id}/cover-letter.tex
+    4. If the tool returns an error, fix the content and retry once.
+  expected_output: >
+    The path to the generated cover-letter.pdf, e.g.
+    "data/2026-05-10/applications/acme-corp--senior-pm/cover-letter.pdf"
+    — or "Cover letter not required for this vacancy." if not needed.
+  agent: cover_letter_writer
+  context:
+    - profile_brief_task
