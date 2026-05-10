@@ -92,3 +92,18 @@ def run_with_trigger():
         return result
     except Exception as e:
         raise Exception(f"An error occurred while running the crew with trigger: {e}")
+
+
+def run_discovery() -> None:
+    """Cron entry point — discover and score new vacancies, send Telegram approval requests."""
+    raise NotImplementedError("run_discovery will be implemented in Task 13")
+
+
+def run_bot() -> None:
+    """Long-running entry point — start the Telegram bot."""
+    raise NotImplementedError("run_bot will be implemented in Task 13")
+
+
+def run_advisor() -> None:
+    """Long-running entry point — start the Chainlit Career Advisor."""
+    raise NotImplementedError("run_advisor will be implemented in Task 13")
