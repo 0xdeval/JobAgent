@@ -1,3 +1,4 @@
 from job_hunting.tools.dedup_tool import DedupTool
+from job_hunting.tools.telegram_notifier import TelegramNotifierTool
 
-__all__ = ["DedupTool"]
+__all__ = ["DedupTool", "TelegramNotifierTool"]
