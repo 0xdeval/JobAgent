@@ -9,6 +9,8 @@ dependencies = [
     "python-telegram-bot>=21.0",
     "chainlit>=1.0",
     "python-dotenv",
+    "selenium",
+    "webdriver-manager",
 ]
 
 [project.scripts]
