@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from datetime import date
 from crewai.flow.flow import Flow, listen, start
 from job_hunting.crews.discovery.crew import DiscoveryCrew
@@ -13,7 +12,7 @@ class DiscoveryFlow(Flow):
     @start()
     def run_discovery_crew(self) -> list[dict]:
         today = date.today().isoformat()
-        result = DiscoveryCrew().crew().kickoff(inputs={"today": today})
+        DiscoveryCrew().crew().kickoff(inputs={"today": today})
         qualifying = []
         score_dir = scores_dir(today)
         if score_dir.exists():
