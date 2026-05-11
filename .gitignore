@@ -12,4 +12,5 @@ __pycache__/
 *.fls
 *.fdb_latexmk
 .omc/
+.omx/
 knowledge/
