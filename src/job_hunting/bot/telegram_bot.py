@@ -1,3 +1,5 @@
+from job_hunting.config import TELEGRAM_ALLOWED_USERS
+from datetime import date
 import json
 import logging
 import threading
@@ -11,13 +13,32 @@ logger = logging.getLogger(__name__)
 
 
 def _update_status(vacancy_id: str, date: str, status: str) -> None:
-    score_path = scores_dir(date) / f"{vacancy_id}.json"
-    if not score_path.exists():
-        logger.warning(f"Score file not found: {score_path}")
+    score_dir = scores_dir(date)
+    if not score_dir.exists():
+        logger.warning(f"Score directory not found: {score_dir}")
         return
+
+    score_path = score_dir / f"{vacancy_id}.json"
+    
+    # Handle truncated ID if the exact file isn't found
+    if not score_path.exists():
+        matches = list(score_dir.glob(f"{vacancy_id}*.json"))
+        if len(matches) == 1:
+            score_path = matches[0]
+            logger.info(f"Found match for truncated ID: {score_path}")
+        elif len(matches) > 1:
+            logger.error(f"Multiple matches found for {vacancy_id} in {score_dir}")
+            return
+        else:
+            logger.warning(f"No match found for vacancy_id: {vacancy_id}")
+            return
+
     data = json.loads(score_path.read_text())
+    # Important: capture the FULL vacancy_id from the file if we're using a truncated one
+    full_vacancy_id = data.get("vacancy_id", vacancy_id)
     data["status"] = status
     score_path.write_text(json.dumps(data, indent=2))
+    return full_vacancy_id
 
 
 def _parse_callback(data: str) -> tuple[str, str, str]:
@@ -28,32 +49,56 @@ def _parse_callback(data: str) -> tuple[str, str, str]:
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    if query.from_user.id != TELEGRAM_CHAT_ID:
+    user_id = query.from_user.id
+    chat_id = update.effective_chat.id
+    
+    logger.info(f"Received callback from user {user_id} in chat {chat_id}")
+
+    # Allow if the user ID matches OR if the chat ID matches (for group chats)
+    authorized_ids = [str(TELEGRAM_CHAT_ID)]
+    if TELEGRAM_ALLOWED_USERS:
+        authorized_ids.extend([i.strip() for i in TELEGRAM_ALLOWED_USERS.split(",")])
+        
+    if str(user_id) not in authorized_ids and str(chat_id) not in authorized_ids:
+        logger.warning(f"Ignoring unauthorized click from user {user_id} in chat {chat_id}")
+        await query.answer("You are not authorized to perform this action.", show_alert=True)
         return
 
     await query.answer()
-    action, vacancy_id, date = _parse_callback(query.data)
+    
+    try:
+        action, vacancy_id, date = _parse_callback(query.data)
+        
+        if action == "approve":
+            full_id = _update_status(vacancy_id, date, "approved")
+            if not full_id:
+                await query.edit_message_text(f"❌ Error: Could not find record for {vacancy_id}")
+                return
+            await query.edit_message_text(f"✅ Approved — starting application for {full_id}…")
+            threading.Thread(
+                target=_run_application_flow,
+                args=(full_id, date),
+                daemon=True,
+            ).start()
 
-    if action == "approve":
-        _update_status(vacancy_id, date, "approved")
-        await query.edit_message_text(f"✅ Approved — starting application for {vacancy_id}…")
-        threading.Thread(
-            target=_run_application_flow,
-            args=(vacancy_id, date),
-            daemon=True,
-        ).start()
+        elif action == "decline":
+            full_id = _update_status(vacancy_id, date, "declined")
+            if full_id:
+                await query.edit_message_text(f"❌ Declined: {full_id}")
 
-    elif action == "decline":
-        _update_status(vacancy_id, date, "declined")
-        await query.edit_message_text(f"❌ Declined: {vacancy_id}")
+        elif action == "applied":
+            full_id = _update_status(vacancy_id, date, "applied")
+            if full_id:
+                await query.edit_message_text(f"✅ Marked as applied: {full_id}")
 
-    elif action == "applied":
-        _update_status(vacancy_id, date, "applied")
-        await query.edit_message_text(f"✅ Marked as applied: {vacancy_id}")
-
-    elif action == "not_applied":
-        _update_status(vacancy_id, date, "not_applied")
-        await query.edit_message_text(f"📝 Noted — not applied: {vacancy_id}")
+        elif action == "not_applied":
+            full_id = _update_status(vacancy_id, date, "not_applied")
+            if full_id:
+                await query.edit_message_text(f"📝 Noted — not applied: {full_id}")
+                
+    except Exception as e:
+        logger.error(f"Error handling callback: {e}")
+        await query.edit_message_text(f"❌ Error processing click: {str(e)}")
 
 
 def _run_application_flow(vacancy_id: str, date: str) -> None:

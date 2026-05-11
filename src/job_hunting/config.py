@@ -16,3 +16,4 @@ def get_llm() -> LLM:
 MIN_SCORE: int = int(os.getenv("MIN_SCORE", "70"))
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: int = int(os.getenv("TELEGRAM_CHAT_ID", "0"))
+TELEGRAM_ALLOWED_USERS: str = os.getenv("TELEGRAM_ALLOWED_USERS", "")
