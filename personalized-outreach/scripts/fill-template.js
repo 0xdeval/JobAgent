@@ -53,6 +53,25 @@ function escapeLatex(text) {
     .replace(/”/g, "''");   // right double quotation mark
 }
 
+function sanitizeGeneratedText(text) {
+  if (!text) return "";
+  return text
+    .replace(/\[cite:\s*[^\]]+\]/gi, "")
+    .replace(/\[cite_start\]/gi, "")
+    .replace(/\[cite_end\]/gi, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([.?!]){2,}/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function capitalizeSentenceStart(text) {
+  if (!text) return "";
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 function readProfileFiles(profileDir) {
   const profile = {
     generalInfo: {},
@@ -200,16 +219,250 @@ function boldMetrics(text) {
   return text.replace(/\*\*(.+?)\*\*/g, "\\textbf{$1}");
 }
 
+function slugifyId(value) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]/g, "");
+}
+
+function dedupeStrings(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const normalized = (item || "").trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(sanitizeGeneratedText(item.trim()));
+  }
+  return result;
+}
+
+function resolveEntitiesByIds(entities, requestedIds = []) {
+  if (!Array.isArray(requestedIds) || requestedIds.length === 0) return [];
+
+  const byId = new Map(entities.map((entity) => [entity.id, entity]));
+  const entitiesBySlug = new Map(
+    entities.map((entity) => [slugifyId(entity.id), entity])
+  );
+
+  const resolved = [];
+  const used = new Set();
+
+  requestedIds.forEach((rawId) => {
+    const direct = byId.get(rawId);
+    if (direct && !used.has(direct.id)) {
+      resolved.push(direct);
+      used.add(direct.id);
+      return;
+    }
+
+    const normalized = slugifyId(rawId);
+    const normalizedMatch = entitiesBySlug.get(normalized);
+    if (normalizedMatch && !used.has(normalizedMatch.id)) {
+      resolved.push(normalizedMatch);
+      used.add(normalizedMatch.id);
+      return;
+    }
+
+    const fuzzy = entities.find((entity) => {
+      if (used.has(entity.id)) return false;
+      const entitySlug = slugifyId(entity.id);
+      return (
+        entitySlug.includes(normalized) ||
+        normalized.includes(entitySlug)
+      );
+    });
+    if (fuzzy) {
+      resolved.push(fuzzy);
+      used.add(fuzzy.id);
+    }
+  });
+
+  return resolved;
+}
+
+function mergeRoleAchievements(role, customDescriptions = {}, minBullets = 4, maxBullets = 5) {
+  const tailored = customDescriptions[role.id] || [];
+  const merged = dedupeStrings([...(tailored || []), ...(role.achievements || [])]);
+
+  if (merged.length === 0) return [];
+  return merged.slice(0, Math.max(minBullets, Math.min(maxBullets, merged.length)));
+}
+
+const MONTH_TO_INDEX = {
+  january: 1,
+  february: 2,
+  march: 3,
+  april: 4,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  december: 12,
+};
+
+function parsePeriodStart(period) {
+  if (!period) return Number.MAX_SAFE_INTEGER;
+  const normalized = period
+    .replace(/–/g, "-")
+    .replace(/—/g, "-")
+    .toLowerCase();
+  const [startPart] = normalized.split("-").map((part) => part.trim());
+  const match = startPart.match(
+    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/
+  );
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const monthIndex = MONTH_TO_INDEX[match[1]] || 12;
+  const year = Number(match[2]);
+  return year * 12 + monthIndex;
+}
+
+function parsePeriodEnd(period) {
+  if (!period) return Number.MAX_SAFE_INTEGER;
+  const normalized = period
+    .replace(/–/g, "-")
+    .replace(/—/g, "-")
+    .toLowerCase();
+  const parts = normalized.split("-").map((part) => part.trim()).filter(Boolean);
+  const endPart = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+
+  if (endPart.includes("present") || endPart.includes("now")) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const match = endPart.match(
+    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/
+  );
+  if (!match) return parsePeriodStart(period);
+  const monthIndex = MONTH_TO_INDEX[match[1]] || 12;
+  const year = Number(match[2]);
+  return year * 12 + monthIndex;
+}
+
+function sortRolesChronologically(roles) {
+  // Simple deterministic order:
+  // 1) by start date (oldest -> newest)
+  // 2) by end date (oldest -> newest)
+  // 3) by company name
+  return [...roles].sort((a, b) => {
+    const startDiff = parsePeriodStart(a.period) - parsePeriodStart(b.period);
+    if (startDiff !== 0) return startDiff;
+    const endDiff = parsePeriodEnd(a.period) - parsePeriodEnd(b.period);
+    if (endDiff !== 0) return endDiff;
+    return a.company.localeCompare(b.company);
+  });
+}
+
+function formatSkills(skillsInput) {
+  const skillItems = Array.isArray(skillsInput)
+    ? skillsInput
+    : String(skillsInput || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  const cleanedSkills = dedupeStrings(skillItems).map((skill) =>
+    sanitizeGeneratedText(skill)
+  );
+
+  const categoryRules = [
+    {
+      label: "Product",
+      keywords: [
+        "product strategy",
+        "roadmap",
+        "launch",
+        "go-to-market",
+        "gtm",
+        "monetization",
+        "discovery",
+        "workflow design",
+      ],
+    },
+    {
+      label: "Domain",
+      keywords: [
+        "digital asset",
+        "web3",
+        "defi",
+        "payments",
+        "privacy",
+        "compliance",
+        "account abstraction",
+        "cross-chain",
+        "blockchain",
+      ],
+    },
+    {
+      label: "Technical",
+      keywords: [
+        "api",
+        "sdk",
+        "sql",
+        "data",
+        "analytics",
+        "infrastructure",
+        "mcp",
+      ],
+    },
+    {
+      label: "Leadership",
+      keywords: [
+        "cross-functional",
+        "leadership",
+        "stakeholder",
+        "partnership",
+        "partner engagement",
+      ],
+    },
+  ];
+
+  const grouped = new Map(categoryRules.map((rule) => [rule.label, []]));
+  const uncategorized = [];
+
+  cleanedSkills.forEach((skill) => {
+    const normalized = skill.toLowerCase();
+    const matched = categoryRules.find((rule) =>
+      rule.keywords.some((keyword) => normalized.includes(keyword))
+    );
+    if (matched) {
+      grouped.get(matched.label).push(skill);
+    } else {
+      uncategorized.push(skill);
+    }
+  });
+
+  if (uncategorized.length) {
+    grouped.set("Additional", uncategorized);
+  }
+
+  const orderedLabels = ["Product", "Domain", "Technical", "Leadership", "Additional"];
+  const lines = orderedLabels
+    .filter((label) => grouped.has(label) && grouped.get(label).length > 0)
+    .map((label) => {
+      const values = dedupeStrings(grouped.get(label));
+      return `\\resumeItem{\\textbf{${label}:} ${escapeLatex(values.join(", "))}}`;
+    });
+
+  return lines.length > 0 ? lines.join("\n") : "\\resumeItem{}";
+}
+
 function formatWorkExperience(roles, customDescriptions = {}, customCompanyDescriptions = {}) {
   return roles
     .map((role) => {
-      const achievements = customDescriptions[role.id] || role.achievements;
+      const achievements = mergeRoleAchievements(role, customDescriptions, 4, 5);
       const companyDescription =
         role.id in customCompanyDescriptions
           ? customCompanyDescriptions[role.id]
           : role.companyDescription;
       const bullets = achievements
-        .map((desc) => `      \\resumeItem{${boldMetrics(escapeLatex(desc))}}`)
+        .map((desc) =>
+          `      \\resumeItem{${boldMetrics(escapeLatex(capitalizeSentenceStart(desc)))}}`
+        )
         .join("\n");
 
       return `    \\resumeSubheading
@@ -225,9 +478,14 @@ ${bullets}
 function formatProjects(projects, customDescriptions = {}) {
   return projects
     .map((proj) => {
-      const descriptions = customDescriptions[proj.id] || [proj.description];
+      const descriptions = dedupeStrings([
+        ...(customDescriptions[proj.id] || []),
+        proj.description,
+      ]).slice(0, 2);
       const bullets = descriptions
-        .map((desc) => `    \\resumeItem{${boldMetrics(escapeLatex(desc))}}`)
+        .map((desc) =>
+          `    \\resumeItem{${boldMetrics(escapeLatex(capitalizeSentenceStart(desc)))}}`
+        )
         .join("\n");
 
       return `\\resumeProject
@@ -299,13 +557,26 @@ function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir) {
   // Replace summary
   template = template.replace(
     /==SHORT SUMMARY==/g,
-    escapeLatex(tailoredData.summary || profile.summary)
+    boldMetrics(
+      escapeLatex(
+        capitalizeSentenceStart(
+          sanitizeGeneratedText(tailoredData.summary || profile.summary)
+        )
+      )
+    )
   );
 
   // Replace experience
-  const selectedRoles = profile.workExperience.filter((role) =>
-    tailoredData.workExperienceIds?.includes(role.id)
+  let selectedRoles = resolveEntitiesByIds(
+    profile.workExperience,
+    tailoredData.workExperienceIds
   );
+  if (selectedRoles.length < 4) {
+    const selectedIds = new Set(selectedRoles.map((role) => role.id));
+    const fallbackRoles = profile.workExperience.filter((role) => !selectedIds.has(role.id));
+    selectedRoles = [...selectedRoles, ...fallbackRoles].slice(0, 4);
+  }
+  selectedRoles = sortRolesChronologically(selectedRoles);
   if (selectedRoles.length > 0) {
     const experienceSection = formatWorkExperience(
       selectedRoles,
@@ -320,25 +591,24 @@ function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir) {
   }
 
   // Replace projects
-  const selectedProjects = profile.projects.filter((proj) =>
-    tailoredData.projectIds?.includes(proj.id)
-  );
-  if (selectedProjects.length > 0) {
-    const projectsSection = formatProjects(
-      selectedProjects,
-      tailoredData.projectDescriptions || {}
-    );
-    // Match the project placeholder block and replace it
-    template = template.replace(
-      /\\resumeProject\s+\{==PROJECT NAME==\}[\s\S]*?\\resumeItemListEnd/m,
-      projectsSection
-    );
+  let selectedProjects = resolveEntitiesByIds(profile.projects, tailoredData.projectIds);
+  if (selectedProjects.length === 0) {
+    selectedProjects = profile.projects.slice(0, 2);
   }
+  const projectsSection = formatProjects(
+    selectedProjects,
+    tailoredData.projectDescriptions || {}
+  );
+  // Match the project placeholder block and replace it
+  template = template.replace(
+    /\\resumeProject\s+\{==PROJECT NAME==\}[\s\S]*?\\resumeItemListEnd/m,
+    projectsSection
+  );
 
   // Replace skills
   template = template.replace(
     /==TOOLS AND STACK==/g,
-    escapeLatex(tailoredData.skills || "")
+    formatSkills(tailoredData.skills || "")
   );
 
   // Write output

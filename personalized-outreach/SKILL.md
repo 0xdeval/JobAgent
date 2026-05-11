@@ -33,23 +33,23 @@ Tone throughout: **professional but casual** — confident, human, never robotic
 
 ## Data Files
 
-These files live in the user's working directory and contain the real profile data:
+These files live in the user's working directory and contain relevant profile facts:
 
-| File                            | Contents                                                        |
-| ------------------------------- | --------------------------------------------------------------- |
-| `profile/profile-summary.md`    | Compact index of core facts and achievements — **loaded first** |
-| `profile/work-experience.md`    | Detailed employment history                                     |
-| `profile/personal-projects.md`  | Side projects and personal work                                 |
-| `profile/general-info.md`       | Education, certifications, location, links, languages           |
-| `profile/public-performance.md` | Conference talks, publications, community involvement           |
+| File                                     | Contents                                                        |
+| ---------------------------------------- | --------------------------------------------------------------- |
+| `knowledge/profile/profile-summary.md`    | Compact index of core facts and achievements — **loaded first** |
+| `knowledge/profile/work-experience.md`    | Detailed employment history                                     |
+| `knowledge/profile/personal-projects.md`  | Side projects and personal work                                 |
+| `knowledge/profile/general-info.md`       | Education, certifications, location, links, languages           |
+| `knowledge/profile/public-performance.md` | Conference talks, publications, community involvement           |
 
 These files live inside the skill directory and set the quality bar:
 
 | File                                                                  | Contents                                                         |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `.claude/skills/personalized-outreach/best-practices/cv.md`           | Reference CV — the gold standard for format, density, and tone  |
-| `.claude/skills/personalized-outreach/best-practices/cover-letter.md` | Reference cover letter — the gold standard for style and length |
-| `.claude/skills/personalized-outreach/templates/cover-letter.md`      | LaTeX template with `==INTRO==`, `==MAIN BODY==`, `==CONCLUSION==` placeholders |
+| `personalized-outreach/best-practices/cv.md`           | Reference CV — the gold standard for format, density, and tone  |
+| `personalized-outreach/best-practices/cover-letter.md` | Reference cover letter — the gold standard for style and length |
+| `personalized-outreach/templates/cover-letter.md`      | LaTeX template with `==INTRO==`, `==MAIN BODY==`, `==CONCLUSION==` placeholders |
 
 ### File Loading Strategy (Token Optimization)
 
@@ -101,7 +101,7 @@ Generate only what the user confirmed in Step 1c. Order: CV → LinkedIn message
 The CV is generated in three steps:
 
 1. **Generate structured CV data** (JSON) tailored to company/role
-2. **Fill LaTeX template** using `scripts/fill-template.ts`
+2. **Fill LaTeX template** using `scripts/fill-template.js`
 
 This approach saves tokens by avoiding template-filling rewrites.
 
@@ -111,13 +111,13 @@ This approach saves tokens by avoiding template-filling rewrites.
 
 ### Step 0: Load Quality Reference
 
-Before generating anything, read `.claude/skills/personalized-outreach/best-practices/cv.md`. This is a real finished CV — study its bullet density, phrasing style, metrics placement, and overall feel. Your output should match this bar.
+Before generating anything, read `personalized-outreach/best-practices/cv.md`. This is a real finished CV — study its bullet density, phrasing style, metrics placement, and overall feel. Your output should match this bar.
 
 ### Step 1: Generate Tailored Data JSON
 
 Analyze the company + vacancy and generate JSON selecting which profile entries to highlight + how to tailor them. The script will read real profile data and merge it with these tailored selections.
 
-**REQUIRED: Include at least 4 professional work experiences** (from profile/work-experience.md)
+**REQUIRED: Include at least 4 professional work experiences** (from knowledge/profile/work-experience.md)
 
 Generate JSON with this exact structure:
 
@@ -155,7 +155,7 @@ Generate JSON with this exact structure:
 
 **How IDs are generated from profile files:** The script derives IDs from the company name using: lowercase → spaces to hyphens → remove non-word characters. So "Saola & Mine'd" → `saola--mined`, "Prisma Labs, Inc." → `prisma-labs-inc`, "Wildberries / EPAM / Ozon" → `wildberries--epam--ozon`. Use these exact IDs in the JSON.
 
-**Company descriptions** are auto-parsed from `work-experience.md` — the first paragraph after the `**Industry:**` line in each role block. The CV template renders them as the subtitle under each job heading (`{Position | Company} → {Company description}`). You don't need to provide them in the JSON unless you want to override what's in the profile (e.g., to shorten a long description for space).
+**Company descriptions** are auto-parsed from `knowledge/profile/work-experience.md` — the first paragraph after the `**Industry:**` line in each role block. The CV template renders them as the subtitle under each job heading (`{Position | Company} → {Company description}`). You don't need to provide them in the JSON unless you want to override what's in the profile (e.g., to shorten a long description for space).
 
 If needed, override with the optional field:
 ```json
@@ -168,27 +168,27 @@ If needed, override with the optional field:
 
 - **At least 4 work experiences** must be included (from available roles in profile)
 - Each experience must have **tailored descriptions** optimized for the company + vacancy
+- Each selected experience should include **4-5 bullets** with concrete outcomes (metrics first)
 - Descriptions must emphasize **relevant metrics and achievements** that match the job requirements
 - Never omit experiences with strong metrics for the sake of brevity
 - Keep the experience description useful for a talent team, but don't make to short or to much long
-
-````
+- **Include at least 1 project ID** and project description so the Projects section is always populated
 
 ### Step 2: Run fill-template.js Script
 
 Save the tailored JSON to `.tmp/tailored-data.json` (not the project root — it's gitignored there). Then run:
 
 ```bash
-mkdir -p .tmp && node .claude/skills/personalized-outreach/scripts/fill-template.js \
-  .claude/skills/personalized-outreach/templates/cv-template.md \
+mkdir -p .tmp && node personalized-outreach/scripts/fill-template.js \
+  personalized-outreach/templates/cv-template.md \
   .tmp/tailored-data.json \
   output/cv-{company}.tex \
-  profile/
+  knowledge/profile/
 ```
 
 This script:
 
-- Reads real profile data from `profile/` folder (work-experience.md, personal-projects.md, general-info.md)
+- Reads real profile data from `knowledge/profile/` folder (work-experience.md, personal-projects.md, general-info.md)
 - Reads your tailored JSON selections
 - Merges profile data + tailored achievements
 - Replaces all placeholders with content
@@ -336,8 +336,8 @@ Only generate if the user confirmed this in Step 1c.
 
 Read both files before writing a single word:
 
-1. `.claude/skills/personalized-outreach/best-practices/cover-letter.md` — a finished cover letter at the target quality bar. Study its tone, paragraph structure, opening hook, how it uses metrics, and how it closes. Match this energy.
-2. `.claude/skills/personalized-outreach/templates/cover-letter.md` — the LaTeX template you will fill. It has three placeholders: `==INTRO==`, `==MAIN BODY==`, and `==CONCLUSION==`.
+1. `personalized-outreach/best-practices/cover-letter.md` — a finished cover letter at the target quality bar. Study its tone, paragraph structure, opening hook, how it uses metrics, and how it closes. Match this energy.
+2. `personalized-outreach/templates/cover-letter.md` — the LaTeX template you will fill. It has three placeholders: `==INTRO==`, `==MAIN BODY==`, and `==CONCLUSION==`.
 
 ### Step 1: Draft the Three Sections
 

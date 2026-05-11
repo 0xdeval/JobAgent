@@ -1,16 +1,13 @@
 \documentclass[a4paper,10pt]{article}
 \usepackage{latexsym}
-\usepackage[empty]{fullpage}
-\usepackage{titlesec}
-\usepackage{marvosym}
+\usepackage{geometry}
+\geometry{left=1.2cm, top=1.2cm, right=1.2cm, bottom=1.2cm}
 \usepackage[usenames,dvipsnames]{color}
 \usepackage{verbatim}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
 \usepackage{tabularx}
-\usepackage{geometry}
-\geometry{left=1.2cm, top=1.2cm, right=1.2cm, bottom=1.2cm}
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot{}
@@ -20,9 +17,16 @@
 \raggedbottom
 \raggedright
 \setlength{\tabcolsep}{0in}
-\titleformat{\section}{
-\vspace{-5pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+\setcounter{secnumdepth}{0}
+
+% Standard section redefinition for BasicTeX compatibility (replaces titlesec)
+\makeatletter
+\renewcommand{\section}{\@startsection{section}{1}{0pt}%
+    {-3.5ex plus -1ex minus -.2ex}%
+    {2.3ex plus .2ex}%
+    {\large\scshape\raggedright}}
+\makeatother
+\newcommand{\sectionRule}{\vspace{-5pt}\hrule\vspace{5pt}}
 \newcommand{\resumeItem}[1]{
 \item\small{
 {#1 \vspace{-2pt}}
@@ -58,10 +62,10 @@
 \textbf{==PLACE==}
 \end{center}
 
-\section{SUMMARY}
+\section{SUMMARY}\sectionRule
 ==SHORT SUMMARY==
 
-\section{Experience}
+\section{Experience}\sectionRule
 \resumeSubHeadingListStart
 \resumeSubheading
 {==POSITION TITLE== | ==COMPANY NAME==}{==WORKING PLACE==}
@@ -71,7 +75,7 @@
 \resumeItemListEnd
 \resumeSubHeadingListEnd
 
-\section{Projects}
+\section{Projects}\sectionRule
 \resumeSubHeadingListStart
 \resumeProject
 {==PROJECT NAME==}{==PROJECT PERIOD==}
@@ -80,23 +84,19 @@
 \resumeItemListEnd
 \resumeSubHeadingListEnd
 
-\section{Public speaking}
-\resumeSubHeadingListStart
+\section{Public speaking}\sectionRule
 \resumeItemListStart
 \resumeItem{\textbf{\href{https://ethcc.io/archives/dapp-security-creating-a-trusted-web3-space}{\underline{ETHCC (Paris)}} \& \href{https://www.youtube.com/watch?v=6b46AoFdqxo}{\underline{DappCon (Berlin)}}:} Featured speaker on "Building trusted Web3 spaces" and "Overcoming UX friction in dapps"}
 \resumeItem{\textbf{\href{https://www.youtube.com/watch?v=-gBAIC0lHbM}{\underline{ETH Dam (Amsterdam)}} \& \href{https://www.youtube.com/watch?v=ID3av0xJzKc}{\underline{ETH Belgrade}}:} Presented technical research on designing user-friendly zero-knowledge privacy tools}
 \resumeItem{\textbf{\href{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4787693}{\underline{DeFi privacy and self-regulatory compliance white paper}}:} Authored a white paper analyzing the intersection of zero-knowledge privacy and regulation, proposing a framework of selective disclosure and AML screening to mitigate illicit use in protocols like zkBob and RAILGUN}
 \resumeItemListEnd
-\resumeSubHeadingListEnd
 
-\section{Skills}
-\resumeSubHeadingListStart
+\section{Skills}\sectionRule
 \resumeItemListStart
-\resumeItem{==TOOLS AND STACK==}
+==TOOLS AND STACK==
 \resumeItemListEnd
-\resumeSubHeadingListEnd
 
-\section{Education}
+\section{Education}\sectionRule
 \resumeSubHeadingListStart
 \resumeSubheading
 {Higher School of Economics}{GAP 8/10}
