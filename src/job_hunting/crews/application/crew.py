@@ -1,8 +1,8 @@
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, LLM, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai_tools import FileReadTool, FileWriterTool
-from typing import List
+from typing import Any, List
 from job_hunting.config import get_llm
 from job_hunting.tools import CVGeneratorTool, CoverLetterTool
 
@@ -16,11 +16,21 @@ class ApplicationCrew:
     agents: List[BaseAgent]
     tasks: List[Task]
 
+    def _resolve_agent_llm(self, agent_key: str) -> Any:
+        config = self.agents_config[agent_key]
+        llm_config = config.get("llm")
+
+        if llm_config is None or llm_config == "":
+            return get_llm()
+        if isinstance(llm_config, dict):
+            return LLM(**llm_config)
+        return llm_config
+
     @agent
     def profile_steward(self) -> Agent:
         return Agent(
             config=self.agents_config["profile_steward"],
-            llm=get_llm(),
+            llm=self._resolve_agent_llm("profile_steward"),
             tools=[FileReadTool()],
             verbose=True,
         )
@@ -29,7 +39,7 @@ class ApplicationCrew:
     def qa_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["qa_analyst"],
-            llm=get_llm(),
+            llm=self._resolve_agent_llm("qa_analyst"),
             tools=[FileWriterTool()],
             verbose=True,
         )
@@ -38,7 +48,7 @@ class ApplicationCrew:
     def cv_architect(self) -> Agent:
         return Agent(
             config=self.agents_config["cv_architect"],
-            llm=get_llm(),
+            llm=self._resolve_agent_llm("cv_architect"),
             tools=[FileReadTool(), CVGeneratorTool()],
             verbose=True,
         )
@@ -47,7 +57,7 @@ class ApplicationCrew:
     def cover_letter_writer(self) -> Agent:
         return Agent(
             config=self.agents_config["cover_letter_writer"],
-            llm=get_llm(),
+            llm=self._resolve_agent_llm("cover_letter_writer"),
             tools=[FileReadTool(), CoverLetterTool()],
             verbose=True,
         )
