@@ -110,7 +110,15 @@ Reads `search-criteria.md`, profile, and `company-source-queries.yaml`. Produces
 
 ### Company Researcher
 
-Executes the planned searches, extracts candidate companies and source URLs, and removes obvious duplicates.
+Executes the planned searches, extracts candidate companies and source URLs, and owns deduplication before any downstream resolution or scoring work.
+
+The Company Researcher skips companies that are already present in:
+
+- the current run's in-memory candidates
+- earlier `data/*/company_candidates.csv` files
+- `knowledge/companies.csv`
+
+This prevents the new sourcing crew from re-adding companies already known to the curated or generated lead pools.
 
 ### Career Page Resolver
 
@@ -184,6 +192,8 @@ The existing discovery crew can later read approved candidate rows through a sep
 
 ## Deduplication
 
+Deduplication is owned by the Company Researcher agent.
+
 Deduplicate candidates by normalized company name, website domain, and career page URL.
 
 The first version should check:
@@ -192,7 +202,7 @@ The first version should check:
 - earlier `data/*/company_candidates.csv` files
 - `knowledge/companies.csv`
 
-If a candidate is already known, skip it unless the new row adds a missing career page with higher confidence.
+If a candidate is already known, skip it. The first version should not update existing candidate rows or re-add known companies with alternate source evidence.
 
 ## Error Handling
 
