@@ -245,5 +245,5 @@ def test_company_sourcing_crew_agents_include_expected_tools():
     assert fit_tools == {"FileReadTool"}
 
     assert "FileReadTool" in writer_tools
-    assert "FileWriterTool" in writer_tools
     assert "CompanyCandidateWriterTool" in writer_tools
+    assert "FileWriterTool" not in writer_tools

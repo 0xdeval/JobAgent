@@ -3,7 +3,7 @@ from typing import List
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
-from crewai_tools import FileReadTool, FileWriterTool
+from crewai_tools import FileReadTool
 
 from job_hunting.config import get_llm
 from job_hunting.tools import (
@@ -61,7 +61,7 @@ class CompanySourcingCrew:
         return Agent(
             config=self.agents_config["candidate_writer"],
             llm=get_llm(),
-            tools=[FileReadTool(), FileWriterTool(), CompanyCandidateWriterTool()],
+            tools=[FileReadTool(), CompanyCandidateWriterTool()],
             verbose=True,
         )
 

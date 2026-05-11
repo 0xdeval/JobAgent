@@ -11,16 +11,18 @@ def test_run_company_sourcing_crew_and_notify(monkeypatch, tmp_path):
     monkeypatch.setattr("job_hunting.flows.company_sourcing_flow.today", lambda: "2026-05-11")
 
     output = Path("data/2026-05-11/company_candidates.csv")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        "company,career_page,website,source,industry,match_score,match_reason,status,discovered_at\n"
-        "Acme,https://acme.com/careers,https://acme.com,public_search,FinTech,85,Strong fit,pending_review,2026-05-11T09:00:00Z\n"
-        "Beta,https://beta.com/careers,https://beta.com,public_search,SaaS,70,Weak fit,skipped,2026-05-11T09:00:00Z\n"
-        "Gamma,https://gamma.com/jobs,https://gamma.com,public_search,AI,92,Excellent fit,pending_review,2026-05-11T09:00:00Z\n",
-        encoding="utf-8",
-    )
 
-    kickoff = MagicMock()
+    def _write_candidates(inputs):
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            "company,career_page,website,source,industry,match_score,match_reason,status,discovered_at\n"
+            "Acme,https://acme.com/careers,https://acme.com,public_search,FinTech,85,Strong fit,pending_review,2026-05-11T09:00:00Z\n"
+            "Beta,https://beta.com/careers,https://beta.com,public_search,SaaS,70,Weak fit,skipped,2026-05-11T09:00:00Z\n"
+            "Gamma,https://gamma.com/jobs,https://gamma.com,public_search,AI,92,Excellent fit,pending_review,2026-05-11T09:00:00Z\n",
+            encoding="utf-8",
+        )
+
+    kickoff = MagicMock(side_effect=_write_candidates)
     crew_obj = MagicMock()
     crew_obj.kickoff = kickoff
     crew_cls = MagicMock()
@@ -47,6 +49,44 @@ def test_run_company_sourcing_crew_and_notify(monkeypatch, tmp_path):
         candidate_count=2,
         path=output,
     )
+
+
+def test_run_company_sourcing_crew_does_not_notify_for_old_pending_rows(
+    monkeypatch, tmp_path
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("job_hunting.flows.company_sourcing_flow.today", lambda: "2026-05-11")
+
+    output = Path("data/2026-05-11/company_candidates.csv")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        "company,career_page,website,source,industry,match_score,match_reason,status,discovered_at\n"
+        "Acme,https://acme.com/careers,https://acme.com,public_search,FinTech,85,Strong fit,pending_review,2026-05-11T09:00:00Z\n",
+        encoding="utf-8",
+    )
+
+    kickoff = MagicMock()
+    crew_obj = MagicMock()
+    crew_obj.kickoff = kickoff
+    crew_cls = MagicMock()
+    crew_cls.return_value.crew.return_value = crew_obj
+    monkeypatch.setattr("job_hunting.flows.company_sourcing_flow.CompanySourcingCrew", crew_cls)
+
+    notifier = MagicMock()
+    notifier_cls = MagicMock(return_value=notifier)
+    monkeypatch.setattr("job_hunting.flows.company_sourcing_flow.TelegramNotifierTool", notifier_cls)
+
+    flow = CompanySourcingFlow()
+    result = flow.run_company_sourcing_crew()
+
+    assert result == {
+        "run_date": "2026-05-11",
+        "candidate_count": 0,
+        "path": output,
+    }
+
+    flow.send_review_notification(result)
+    notifier.send_company_candidates_review.assert_not_called()
 
 
 def test_send_review_notification_skips_when_no_pending(monkeypatch, capsys):

@@ -15,6 +15,7 @@ class CompanySourcingFlow(Flow):
         run_date = today()
         output = company_candidates_file(run_date)
         output.parent.mkdir(parents=True, exist_ok=True)
+        pending_before = self._count_pending_candidates(output)
 
         CompanySourcingCrew().crew().kickoff(inputs={"today": run_date})
         if not output.exists():
@@ -22,9 +23,10 @@ class CompanySourcingFlow(Flow):
                 f"Company sourcing completed without creating expected output: {output}"
             )
 
+        pending_after = self._count_pending_candidates(output)
         return {
             "run_date": run_date,
-            "candidate_count": self._count_pending_candidates(output),
+            "candidate_count": max(0, pending_after - pending_before),
             "path": output,
         }
 
