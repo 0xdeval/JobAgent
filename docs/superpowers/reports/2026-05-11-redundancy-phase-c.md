@@ -1,0 +1,10 @@
+# Phase C Redundancy Candidate Report (2026-05-11)
+
+| Path | Category | Why potentially redundant | Reachability evidence | Risk | Recommendation |
+|---|---|---|---|---|---|
+| chainlit.md | docs | Advisor usage guidance appears partially duplicated by root README runbook and command docs. | `rg -n "chainlit\.md" README.md docs src tests chainlit.md personalized-outreach` shows only a mention in the cleanup plan; no runtime import/call references in `src/` or `tests/`. | medium | Keep pending manual Chainlit UX check; delete only if startup/help text is confirmed unaffected. |
+| personalized-outreach/scripts/fill-template.ts | script | TypeScript source may be legacy if runtime and tests only execute the JavaScript entrypoint. | `rg -n "fill-template\.ts" README.md docs src tests personalized-outreach` hits only the file itself and cleanup plan; `src/job_hunting/tools/cv_generator.py` hardcodes `fill-template.js`; tests assert `fill-template.js`. | medium | Candidate for deletion after confirming no local TS-based editing workflow depends on it. |
+| personalized-outreach/README.md | docs | Standalone usage doc may duplicate instructions already captured in `personalized-outreach/SKILL.md` and project-level README. | `rg -n "personalized-outreach/README\.md|/personalized-outreach" README.md docs src tests chainlit.md personalized-outreach/SKILL.md personalized-outreach/README.md` shows only self-contained slash-command mentions inside this README; no runtime/test references. | low | Candidate for consolidation into `SKILL.md` and root README, then delete if no separate audience is needed. |
+| .chainlit/translations/*.json | config | Large set of locale files can be clutter if advisor is single-language and defaults are acceptable. | `rg -n "translations/(ar-SA|bn|de-DE|en-US|pt-PT)\.json|\.chainlit/translations" README.md docs src tests chainlit.md personalized-outreach .chainlit/config.toml` returns no references outside files themselves. | medium-high | Keep unless explicitly choosing to reduce supported UI locales; verify Chainlit fallback behavior before any deletion. |
+
+No deletions performed pending user approval.
