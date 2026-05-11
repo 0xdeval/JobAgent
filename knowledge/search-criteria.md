@@ -1,5 +1,18 @@
 ## General criteria
 
+### Role
+
+The primarily role to look for is product manager
+
+There could be different variation of the role:
+
+- AI product manager
+- Crypto product manager
+- Product manager
+- etc
+
+But the core role is product manager, noting else
+
 ### Seniority
 
 Take into account only the following seniority levels that you can extract from title or other job description parts:
@@ -28,10 +41,6 @@ The top list by priority:
 4. Infrastructure/B2B SaaS
 
 The mix of different industries works as well
-
-### Salary
-
-Generally, the salary won't be a big decision factor for now. You can skip it entirely
 
 ## Critical exclude criteria
 
