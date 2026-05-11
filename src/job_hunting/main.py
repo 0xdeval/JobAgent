@@ -20,5 +20,10 @@ def run_advisor() -> None:
     import subprocess
     import sys
     import os
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     advisor_path = os.path.join(os.path.dirname(__file__), "advisor", "app.py")
-    subprocess.run([sys.executable, "-m", "chainlit", "run", advisor_path], check=True)
+    subprocess.run(
+        [sys.executable, "-m", "chainlit", "run", advisor_path],
+        check=True,
+        cwd=project_root,
+    )

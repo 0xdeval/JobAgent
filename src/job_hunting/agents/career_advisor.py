@@ -1,5 +1,5 @@
 from crewai import Agent
-from crewai_tools import FileReadTool
+from crewai_tools import DirectoryReadTool, FileReadTool
 from job_hunting.config import get_llm
 
 
@@ -17,7 +17,11 @@ def build_career_advisor() -> Agent:
             "from the files — never make up information."
         ),
         llm=get_llm(),
-        tools=[FileReadTool()],
+        tools=[
+            DirectoryReadTool(name="List Data Files", directory="data"),
+            DirectoryReadTool(name="List Profile Files", directory="knowledge/profile"),
+            FileReadTool(),
+        ],
         verbose=True,
         memory=True,
     )
