@@ -3,7 +3,8 @@ from pathlib import Path
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
-TEMPLATE_PATH = "personalized-outreach/templates/cover-letter.md"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+TEMPLATE_PATH = PROJECT_ROOT / "personalized-outreach/templates/cover-letter.md"
 
 
 class CoverLetterInput(BaseModel):
@@ -25,7 +26,7 @@ class CoverLetterTool(BaseTool):
         output_path = Path(output_tex_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        template = Path(TEMPLATE_PATH).read_text()
+        template = TEMPLATE_PATH.read_text()
         filled = (
             template
             .replace("==INTRO==", intro)

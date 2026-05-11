@@ -5,9 +5,10 @@ from pathlib import Path
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
-TEMPLATE_PATH = "personalized-outreach/templates/cv-template.md"
-SCRIPT_PATH = "personalized-outreach/scripts/fill-template.js"
-PROFILE_DIR = "knowledge/profile/"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+TEMPLATE_PATH = PROJECT_ROOT / "personalized-outreach/templates/cv-template.md"
+SCRIPT_PATH = PROJECT_ROOT / "personalized-outreach/scripts/fill-template.js"
+PROFILE_DIR = PROJECT_ROOT / "knowledge/profile"
 
 
 class CVGeneratorInput(BaseModel):
@@ -38,7 +39,14 @@ class CVGeneratorTool(BaseTool):
             json_path = f.name
 
         result = subprocess.run(
-            ["node", SCRIPT_PATH, TEMPLATE_PATH, json_path, str(output_path), PROFILE_DIR],
+            [
+                "node",
+                str(SCRIPT_PATH),
+                str(TEMPLATE_PATH),
+                json_path,
+                str(output_path),
+                str(PROFILE_DIR),
+            ],
             capture_output=True,
             text=True,
         )
