@@ -6,6 +6,13 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import FileReadTool, FileWriterTool
 
 from job_hunting.config import get_llm
+from job_hunting.tools import (
+    CareerPageResolverTool,
+    CompanyCandidateDedupTool,
+    CompanyCandidateWriterTool,
+    CompanyQueryPlannerTool,
+    PublicCompanySearchTool,
+)
 
 
 @CrewBase
@@ -22,7 +29,7 @@ class CompanySourcingCrew:
         return Agent(
             config=self.agents_config["source_planner"],
             llm=get_llm(),
-            tools=[FileReadTool()],
+            tools=[FileReadTool(), CompanyQueryPlannerTool()],
             verbose=True,
         )
 
@@ -31,7 +38,12 @@ class CompanySourcingCrew:
         return Agent(
             config=self.agents_config["company_researcher"],
             llm=get_llm(),
-            tools=[FileReadTool()],
+            tools=[
+                FileReadTool(),
+                PublicCompanySearchTool(),
+                CareerPageResolverTool(),
+                CompanyCandidateDedupTool(),
+            ],
             verbose=True,
         )
 
@@ -49,7 +61,7 @@ class CompanySourcingCrew:
         return Agent(
             config=self.agents_config["candidate_writer"],
             llm=get_llm(),
-            tools=[FileReadTool(), FileWriterTool()],
+            tools=[FileReadTool(), FileWriterTool(), CompanyCandidateWriterTool()],
             verbose=True,
         )
 

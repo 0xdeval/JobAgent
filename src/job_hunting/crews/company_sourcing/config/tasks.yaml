@@ -5,7 +5,9 @@ plan_company_sources_task:
     1. Read knowledge/search-criteria.md to understand role, seniority,
        location, and exclusion constraints.
     2. Read knowledge/profile/profile-summary.md for candidate context.
-    3. Produce a practical sourcing plan with target company signals,
+    3. Use the Company Query Planner tool to generate deterministic query
+       variants from role, seniority, and industry combinations.
+    4. Produce a practical sourcing plan with target company signals,
        prioritization rules, and output schema expectations.
   expected_output: >
     A concise sourcing plan in markdown with explicit inclusion and exclusion
@@ -15,6 +17,13 @@ plan_company_sources_task:
 research_companies_task:
   description: >
     Execute company research using the sourcing plan from the previous task.
+
+    Tooling requirements for this task:
+    - Use Public Company Search for discovery queries.
+    - Use Career Page Resolver to choose a career URL per company from search results.
+    - Use Company Candidate Dedup for dedupe-aware validation during research.
+      This task must not write final candidate files; final persisted output remains
+      the candidate writer task.
 
     Deduplication ownership is REQUIRED in this task:
     - Read knowledge/companies.csv and treat every existing company as already known.
@@ -47,6 +56,8 @@ write_company_candidates_task:
   description: >
     Write the final candidate output for today to:
     data/{today}/company_candidates.csv
+
+    You MUST use Company Candidate Writer to persist schema-compatible rows.
 
     Ensure rows use the company candidate CSV schema:
     - company

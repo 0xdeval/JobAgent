@@ -11,6 +11,11 @@ __all__ = [
     "CompanyCandidateStore",
     "PublicCompanySearch",
     "CareerPageResolver",
+    "CompanyQueryPlannerTool",
+    "PublicCompanySearchTool",
+    "CareerPageResolverTool",
+    "CompanyCandidateDedupTool",
+    "CompanyCandidateWriterTool",
 ]
 
 
@@ -25,6 +30,11 @@ def __getattr__(name: str) -> Any:
         "CompanyCandidateStore": "job_hunting.tools.company_candidate_store",
         "PublicCompanySearch": "job_hunting.tools.company_public_search",
         "CareerPageResolver": "job_hunting.tools.career_page_resolver",
+        "CompanyQueryPlannerTool": "job_hunting.tools.company_sourcing_tools",
+        "PublicCompanySearchTool": "job_hunting.tools.company_sourcing_tools",
+        "CareerPageResolverTool": "job_hunting.tools.company_sourcing_tools",
+        "CompanyCandidateDedupTool": "job_hunting.tools.company_sourcing_tools",
+        "CompanyCandidateWriterTool": "job_hunting.tools.company_sourcing_tools",
     }
     if name not in module_map:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

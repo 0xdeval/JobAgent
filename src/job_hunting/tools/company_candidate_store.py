@@ -2,6 +2,7 @@ import csv
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from job_hunting.utils import all_company_candidate_files, company_candidates_file
 
@@ -48,30 +49,56 @@ class CompanyCandidateStore:
     def __init__(self, run_date: str) -> None:
         self.run_date = run_date
 
-    def write_candidates(self, candidates: list[CompanyCandidate]) -> int:
+    def ensure_output_file(self) -> None:
+        output_file = company_candidates_file(self.run_date)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if output_file.exists():
+            return
+
+        with output_file.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+            writer.writeheader()
+
+    def evaluate_candidates(
+        self, candidates: list[CompanyCandidate]
+    ) -> tuple[list[CompanyCandidate], list[dict[str, str]]]:
         existing_keys = self._load_existing_company_keys()
-        rows_to_write: list[dict[str, str]] = []
+        new_candidates: list[CompanyCandidate] = []
+        skipped_candidates: list[dict[str, str]] = []
         batch_keys: set[str] = set()
 
         for candidate in candidates:
             key = normalize_company_key(candidate.company)
-            if not key or key in existing_keys or key in batch_keys:
+            reason: Literal[
+                "missing_company",
+                "already_known",
+                "duplicate_in_batch",
+            ] | None = None
+            if not key:
+                reason = "missing_company"
+            elif key in existing_keys:
+                reason = "already_known"
+            elif key in batch_keys:
+                reason = "duplicate_in_batch"
+
+            if reason is not None:
+                skipped_candidates.append(
+                    {
+                        "company": candidate.company,
+                        "reason": reason,
+                    }
+                )
                 continue
 
             batch_keys.add(key)
-            rows_to_write.append(
-                {
-                    "company": candidate.company,
-                    "career_page": candidate.career_page,
-                    "website": candidate.website,
-                    "source": candidate.source,
-                    "industry": candidate.industry,
-                    "match_score": str(candidate.match_score),
-                    "match_reason": candidate.match_reason,
-                    "status": candidate.status,
-                    "discovered_at": candidate.discovered_at,
-                }
-            )
+            new_candidates.append(candidate)
+
+        return new_candidates, skipped_candidates
+
+    def write_candidates(self, candidates: list[CompanyCandidate]) -> int:
+        new_candidates, _ = self.evaluate_candidates(candidates)
+        rows_to_write = [self._candidate_to_row(candidate) for candidate in new_candidates]
 
         if not rows_to_write:
             return 0
@@ -87,6 +114,20 @@ class CompanyCandidateStore:
             writer.writerows(rows_to_write)
 
         return len(rows_to_write)
+
+    @staticmethod
+    def _candidate_to_row(candidate: CompanyCandidate) -> dict[str, str]:
+        return {
+            "company": candidate.company,
+            "career_page": candidate.career_page,
+            "website": candidate.website,
+            "source": candidate.source,
+            "industry": candidate.industry,
+            "match_score": str(candidate.match_score),
+            "match_reason": candidate.match_reason,
+            "status": candidate.status,
+            "discovered_at": candidate.discovered_at,
+        }
 
     def _load_existing_company_keys(self) -> set[str]:
         keys = set()
