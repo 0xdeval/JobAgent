@@ -22,9 +22,9 @@
 % Standard section redefinition for BasicTeX compatibility (replaces titlesec)
 \makeatletter
 \renewcommand{\section}{\@startsection{section}{1}{0pt}%
-    {-3.5ex plus -1ex minus -.2ex}%
-    {2.3ex plus .2ex}%
-    {\large\scshape\raggedright}}
+{-3.5ex plus -1ex minus -.2ex}%
+{2.3ex plus .2ex}%
+{\large\scshape\raggedright}}
 \makeatother
 \newcommand{\sectionRule}{\vspace{-5pt}\hrule\vspace{5pt}}
 \newcommand{\resumeItem}[1]{
@@ -99,7 +99,7 @@
 \section{Education}\sectionRule
 \resumeSubHeadingListStart
 \resumeSubheading
-{Higher School of Economics}{GAP 8/10}
+{Higher School of Economics}{GPA 8/10}
 {Bachelor's degree, Computational and Applied Mathematics}{Sep 2016 -- Jun 2020}
 \resumeSubHeadingListEnd
 

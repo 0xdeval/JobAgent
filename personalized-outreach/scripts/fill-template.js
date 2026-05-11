@@ -344,17 +344,56 @@ function parsePeriodEnd(period) {
 }
 
 function sortRolesChronologically(roles) {
-  // Simple deterministic order:
-  // 1) by start date (oldest -> newest)
-  // 2) by end date (oldest -> newest)
+  // Deterministic resume order:
+  // 1) by end date (newest -> oldest, "Present/Now" first)
+  // 2) by start date (newest -> oldest)
   // 3) by company name
   return [...roles].sort((a, b) => {
-    const startDiff = parsePeriodStart(a.period) - parsePeriodStart(b.period);
-    if (startDiff !== 0) return startDiff;
-    const endDiff = parsePeriodEnd(a.period) - parsePeriodEnd(b.period);
+    const endDiff = parsePeriodEnd(b.period) - parsePeriodEnd(a.period);
     if (endDiff !== 0) return endDiff;
+    const startDiff = parsePeriodStart(b.period) - parsePeriodStart(a.period);
+    if (startDiff !== 0) return startDiff;
     return a.company.localeCompare(b.company);
   });
+}
+
+function hasDataScienceSignal(text) {
+  const normalized = (text || "").toLowerCase();
+  return [
+    "data",
+    "analytics",
+    "analyst",
+    "sql",
+    "cohort",
+    "funnel",
+    "experiment",
+    "metric",
+    "dashboard",
+    "model",
+    "ml",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function ensureDataScienceSignal(achievements = []) {
+  const hasExplicitMention = achievements.some((achievement) => {
+    const normalized = (achievement || "").toLowerCase();
+    return (
+      normalized.includes("data science") &&
+      normalized.includes("analyst experience")
+    );
+  });
+  if (hasExplicitMention) return achievements;
+
+  const signalBullet =
+    "Applied data science and analyst experience to define KPI instrumentation, analyze funnels and cohorts, and turn quantitative insights into roadmap decisions.";
+
+  if (achievements.length < 5) {
+    return [...achievements, signalBullet];
+  }
+
+  const updated = [...achievements];
+  updated[updated.length - 1] = signalBullet;
+  return updated;
 }
 
 function formatSkills(skillsInput) {
@@ -454,7 +493,9 @@ function formatSkills(skillsInput) {
 function formatWorkExperience(roles, customDescriptions = {}, customCompanyDescriptions = {}) {
   return roles
     .map((role) => {
-      const achievements = mergeRoleAchievements(role, customDescriptions, 4, 5);
+      const achievements = ensureDataScienceSignal(
+        mergeRoleAchievements(role, customDescriptions, 4, 5)
+      );
       const companyDescription =
         role.id in customCompanyDescriptions
           ? customCompanyDescriptions[role.id]
