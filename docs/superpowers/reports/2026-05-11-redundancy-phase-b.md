@@ -28,6 +28,12 @@
 - Template fingerprint: Stock CrewAI custom tool example with placeholder description and `_run` returning example text.
 - Decision: delete
 
+## Evidence Queries Executed
+- Command 1: `rg -n "job_hunting\.crew|researcher|reporting_analyst" src tests`
+- Finding 1: 3 matches total, all in active flow/config files (`job_hunting.crews.*` imports and a descriptive "researcher" phrase in discovery crew config); no hits for `job_hunting.crew` or `reporting_analyst`.
+- Command 2: `rg -n "src/job_hunting/config/agents.yaml|src/job_hunting/config/tasks.yaml|MyCustomTool|custom_tool" src tests`
+- Finding 2: No matches in `src/` or `tests/`.
+
 ## Targeted Test Verification
 - Command 1: `uv run pytest tests/test_cv_generator.py tests/test_cover_letter_tool.py tests/test_dedup_tool.py tests/test_telegram_notifier.py tests/test_models.py tests/test_utils.py -q`
 - Outcome 1: Failed during dependency resolution with `onnxruntime==1.26.0` wheel incompatibility for `macosx_26_0_x86_64`.
