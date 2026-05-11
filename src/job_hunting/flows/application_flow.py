@@ -29,6 +29,7 @@ class ApplicationFlow(Flow):
                 "title": vacancy["title"],
                 "url": vacancy["url"],
                 "description": vacancy["description"],
+                "questions": "\n".join(vacancy.get("questions", [])),
                 "vacancy_id": self._vacancy_id,
                 "date": self._date,
                 "requires_cover_letter": str(score.get("requires_cover_letter", False)).lower(),

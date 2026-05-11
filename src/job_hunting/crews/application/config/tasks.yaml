@@ -31,7 +31,11 @@ qa_task:
     Based on the profile brief from the previous task and this vacancy description:
     {description}
 
-    1. Extract all explicit application questions from the vacancy description.
+    Explicit application questions (from the vacancy metadata):
+    {questions}
+
+    1. Use the explicit application questions above as the source of truth when provided.
+       If {questions} is empty, then extract explicit application questions from the vacancy description.
        These are questions the employer wants answered (e.g. "Why do you want to work here?",
        "Describe your experience with X").
     2. For each question, write a genuine, specific answer using only facts from the
@@ -71,7 +75,7 @@ cv_task:
          }},
          "skills": "Tailored skills list for this vacancy"
        }}
-       IDs come from work-experience.md: lowercase company name, spaces to hyphens,
+       IDs come from knowledge/profile/work-experience.md: lowercase company name, spaces to hyphens,
        remove special chars. E.g. "Blockscout" → "blockscout".
        Include at least 4 work experiences. Bold key metrics with **double asterisks**.
        Apply the anti-slop filter: no "spearheaded", "leveraged", "streamlined", etc.
