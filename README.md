@@ -141,3 +141,7 @@ Without activating `.venv`, prefix commands with `uv run`, for example:
 ```bash
 uv run job_hunting_discover
 ```
+
+## License
+
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE).
