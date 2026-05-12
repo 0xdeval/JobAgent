@@ -32,6 +32,8 @@ The following ATS domains are working 100% in this project:
 
 ## Quick Start
 
+For a non-code setup walkthrough, see [`docs/setup-guide.md`](docs/setup-guide.md).
+
 ### 1. Install dependencies
 
 Requires Python `>=3.10,<3.14`.
