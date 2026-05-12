@@ -43,6 +43,12 @@ pip install uv
 uv sync
 ```
 
+If `uv sync` fails on Intel macOS because of `onnxruntime`, run:
+
+```bash
+uv sync --no-install-package onnxruntime
+```
+
 ### 2. Configure environment
 
 ```bash

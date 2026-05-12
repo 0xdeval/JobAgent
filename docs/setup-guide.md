@@ -17,6 +17,12 @@ pip install uv
 uv sync
 ```
 
+On some Intel macOS machines, `uv sync` can fail while installing the transitive `onnxruntime` dependency. This service does not use `onnxruntime` directly, so use:
+
+```bash
+uv sync --no-install-package onnxruntime
+```
+
 Create your environment file:
 
 ```bash
@@ -266,3 +272,8 @@ If Telegram does not work:
 - Check `TELEGRAM_BOT_TOKEN`.
 - Check `TELEGRAM_CHAT_ID`.
 - Start the bot with `uv run job_hunting_bot`.
+
+If a command like `job_hunting_source_companies` is not found:
+
+- Run it through uv: `uv run job_hunting_source_companies`.
+- Or activate the virtual environment first: `source .venv/bin/activate`.
