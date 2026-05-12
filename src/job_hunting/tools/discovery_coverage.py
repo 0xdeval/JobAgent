@@ -66,6 +66,7 @@ class DiscoveryCoverageStore:
         scraped_at: str = "",
     ) -> Path:
         rows = self._read_rows()
+        validated_notes = _normalize_failed_notes(status=status, notes=notes)
         normalized_company = company.strip().casefold()
         normalized_career_page = career_page.strip().rstrip("/")
         replacement = {
@@ -74,7 +75,7 @@ class DiscoveryCoverageStore:
             "status": status,
             "jobs_found": str(max(jobs_found, 0)),
             "matched_jobs": str(max(matched_jobs, 0)),
-            "notes": notes.strip(),
+            "notes": validated_notes,
             "scraped_at": scraped_at.strip() or _utc_now(),
         }
 
@@ -128,14 +129,7 @@ class DiscoveryCoverageInput(BaseModel):
 
     @model_validator(mode="after")
     def failed_status_requires_actionable_notes(self):
-        if self.status != "failed":
-            return self
-
-        normalized_notes = self.notes.strip()
-        generic_notes = {"failed", "failure", "error", "unknown", "n/a", "na"}
-        if len(normalized_notes) < 10 or normalized_notes.casefold() in generic_notes:
-            raise ValueError("failed coverage rows require a specific reason in notes")
-        self.notes = normalized_notes
+        self.notes = _normalize_failed_notes(status=self.status, notes=self.notes)
         return self
 
 
@@ -172,3 +166,14 @@ class DiscoveryCoverageTool(BaseTool):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _normalize_failed_notes(status: CoverageStatus, notes: str) -> str:
+    normalized_notes = notes.strip()
+    if status != "failed":
+        return normalized_notes
+
+    generic_notes = {"failed", "failure", "error", "unknown", "n/a", "na"}
+    if len(normalized_notes) < 10 or normalized_notes.casefold() in generic_notes:
+        raise ValueError("failed coverage rows require a specific reason in notes")
+    return normalized_notes
