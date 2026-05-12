@@ -169,6 +169,7 @@ def _utc_now() -> str:
 
 
 def _normalize_failed_notes(status: CoverageStatus, notes: str) -> str:
+    _validate_recordable_status(status)
     normalized_notes = notes.strip()
     if status != "failed":
         return normalized_notes
@@ -177,3 +178,8 @@ def _normalize_failed_notes(status: CoverageStatus, notes: str) -> str:
     if len(normalized_notes) < 10 or normalized_notes.casefold() in generic_notes:
         raise ValueError("failed coverage rows require a specific reason in notes")
     return normalized_notes
+
+
+def _validate_recordable_status(status: CoverageStatus) -> None:
+    if status not in {"completed", "failed", "skipped"}:
+        raise ValueError("coverage status must be one of: completed, failed, skipped")

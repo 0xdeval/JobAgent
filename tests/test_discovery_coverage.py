@@ -170,6 +170,52 @@ def test_tool_run_rejects_failed_without_actionable_notes(tmp_path, monkeypatch)
         )
 
 
+def test_store_record_rejects_not_attempted_status(tmp_path, monkeypatch):
+    knowledge = tmp_path / "knowledge"
+    knowledge.mkdir()
+    (knowledge / "companies.csv").write_text(
+        "Company,Career page\nAcme,https://acme.com/careers\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    store = DiscoveryCoverageStore("2026-05-12")
+    store.initialize_from_companies()
+
+    with pytest.raises(ValueError, match="must be one of"):
+        store.record(
+            company="Acme",
+            career_page="https://acme.com/careers",
+            status="not_attempted",
+            jobs_found=0,
+            matched_jobs=0,
+            notes="",
+            scraped_at="2026-05-12T10:01:00Z",
+        )
+
+
+def test_tool_run_rejects_not_attempted_status(tmp_path, monkeypatch):
+    knowledge = tmp_path / "knowledge"
+    knowledge.mkdir()
+    (knowledge / "companies.csv").write_text(
+        "Company,Career page\nAcme,https://acme.com/careers\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    DiscoveryCoverageStore("2026-05-12").initialize_from_companies()
+
+    with pytest.raises(ValueError, match="must be one of"):
+        DiscoveryCoverageTool()._run(
+            run_date="2026-05-12",
+            company="Acme",
+            career_page="https://acme.com/careers",
+            status="not_attempted",  # type: ignore[arg-type]
+            jobs_found=0,
+            matched_jobs=0,
+            notes="",
+            scraped_at="2026-05-12T10:01:00Z",
+        )
+
+
 def test_tool_input_rejects_not_attempted_status():
     with pytest.raises(ValidationError):
         DiscoveryCoverageInput(
