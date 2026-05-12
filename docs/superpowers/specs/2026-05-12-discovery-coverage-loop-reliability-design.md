@@ -82,6 +82,10 @@ the initial template state.
   page for that company.
 - `failed`: scraping, tool execution, or the per-company crew run failed.
 
+Every `failed` row must include a human-readable failure reason in `notes`.
+The reason should be short enough for CSV review but specific enough to act on,
+for example `Crew kickoff failed: TimeoutError while scraping career page`.
+
 `not_attempted` must not be accepted by `DiscoveryCoverageTool`. At the end of a
 normal `DiscoveryFlow` run, no `not_attempted` rows should remain. If the whole
 Python process is interrupted externally, the last unprocessed rows may remain
@@ -106,11 +110,16 @@ and records:
 status=failed
 jobs_found=0
 matched_jobs=0
-notes=<short exception summary>
+notes=<short exception type and message>
 ```
 
 The flow then continues with the next company. A single failing company should
 not prevent the remaining companies from being attempted.
+
+If the scout records `failed` through `DiscoveryCoverageTool`, it must provide a
+specific reason in `notes`, such as an HTTP error, Selenium timeout, unsupported
+page structure, or missing career page content. Generic notes such as `failed`,
+`error`, or an empty string are not acceptable for failed statuses.
 
 If the company CSV is missing, the initialized coverage file is header-only and
 the flow performs no per-company crew calls. Existing historical pending-score
@@ -126,6 +135,7 @@ Add or update tests proving:
   per company.
 - A successful per-company crew run can leave a `completed` coverage row.
 - A per-company exception records `failed` and the loop continues.
+- `failed` rows include a non-empty, actionable reason in `notes`.
 - `DiscoveryCoverageTool` rejects `not_attempted`.
 - The scout task prompt describes one company per run and does not instruct the
   scout to read or loop through `knowledge/companies.csv`.
@@ -153,6 +163,7 @@ uv run --no-sync pytest
 - Each crew kickoff receives one company and one career page.
 - The scout no longer reads `knowledge/companies.csv`.
 - Coverage distinguishes `completed`, `failed`, and genuine `skipped`.
+- Failed coverage rows explain why the company failed in the `notes` column.
 - No prompt text can produce "Skipped in this run window before scraping".
 - Normal flow completion leaves no `not_attempted` rows.
 - The full test suite passes in the prepared environment.
