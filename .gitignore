@@ -13,4 +13,5 @@ data/
 *.fdb_latexmk
 .omc/
 .omx/
+.worktrees/
 knowledge/
