@@ -49,6 +49,41 @@ def test_run_discovery_crew_invokes_one_crew_per_company(tmp_path, monkeypatch):
     ]
 
 
+def test_run_discovery_crew_uses_default_crew_factory(tmp_path, monkeypatch):
+    knowledge = tmp_path / "knowledge"
+    knowledge.mkdir()
+    (knowledge / "companies.csv").write_text(
+        "Company,Career page\n"
+        "Acme,https://acme.com/careers\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(discovery_flow_module, "today", lambda: "2026-05-12")
+    kickoff_inputs: list[dict[str, str]] = []
+
+    class _Crew:
+        def kickoff(self, inputs: dict[str, str]) -> None:
+            kickoff_inputs.append(inputs)
+
+    class _DiscoveryCrew:
+        def crew(self) -> _Crew:
+            return _Crew()
+
+    monkeypatch.setattr(discovery_flow_module, "DiscoveryCrew", _DiscoveryCrew)
+
+    flow = DiscoveryFlow()
+    result = flow.run_discovery_crew()
+
+    assert result == []
+    assert kickoff_inputs == [
+        {
+            "today": "2026-05-12",
+            "company": "Acme",
+            "career_page": "https://acme.com/careers",
+        }
+    ]
+
+
 def test_successful_company_run_preserves_completed_coverage(tmp_path, monkeypatch):
     knowledge = tmp_path / "knowledge"
     knowledge.mkdir()
