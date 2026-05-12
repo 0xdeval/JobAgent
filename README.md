@@ -72,6 +72,8 @@ Set values in `.env`:
 
 ### 3. Add target companies
 
+Create a `knowledge` folder in the project root and fill all necessary files. Examples are in [`examples/knowledge/`](examples/knowledge/); the guide for files are in [`docs/setup-guide.md`](docs/setup-guide.md)
+
 Edit `knowledge/companies.csv` with company name + career page URL.
 
 Optional: edit `knowledge/company-source-queries.yaml` to tune public search queries used for finding new company career pages. This does not modify `knowledge/companies.csv`; sourced candidates are written separately for review.
