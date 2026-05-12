@@ -3,6 +3,7 @@ from datetime import date
 from crewai.flow.flow import Flow, listen, start
 from job_hunting.crews.discovery.crew import DiscoveryCrew
 from job_hunting.config import MIN_SCORE
+from job_hunting.tools.discovery_coverage import DiscoveryCoverageStore
 from job_hunting.tools.telegram_notifier import TelegramNotifierTool
 from job_hunting.utils import scores_dir
 
@@ -17,6 +18,7 @@ class DiscoveryFlow(Flow):
         from job_hunting.utils import vacancies_dir, scores_dir
         vacancies_dir(today_str).mkdir(parents=True, exist_ok=True)
         scores_dir(today_str).mkdir(parents=True, exist_ok=True)
+        DiscoveryCoverageStore(today_str).initialize_from_companies()
 
         # 1. Run the crew to find NEW vacancies
         DiscoveryCrew().crew().kickoff(inputs={"today": today_str})

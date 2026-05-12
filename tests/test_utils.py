@@ -3,6 +3,7 @@ from job_hunting.utils import (
     all_company_candidate_files,
     applications_dir,
     company_candidates_file,
+    discovery_coverage_file,
     scores_dir,
     vacancies_dir,
 )
@@ -24,6 +25,12 @@ def test_applications_dir():
 def test_company_candidates_file_uses_run_date():
     assert company_candidates_file("2026-05-11") == Path(
         "data/2026-05-11/company_candidates.csv"
+    )
+
+
+def test_discovery_coverage_file_uses_run_date():
+    assert discovery_coverage_file("2026-05-12") == Path(
+        "data/2026-05-12/discovery_coverage.csv"
     )
 
 

@@ -4,7 +4,11 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai_tools import FileReadTool, FileWriterTool, ScrapeWebsiteTool
 from typing import List
 from job_hunting.config import get_llm
-from job_hunting.tools import DedupTool, SafeSeleniumScrapingTool
+from job_hunting.tools import (
+    DedupTool,
+    DiscoveryCoverageTool,
+    SafeSeleniumScrapingTool,
+)
 
 
 @CrewBase
@@ -26,6 +30,7 @@ class DiscoveryCrew:
                 SafeSeleniumScrapingTool(),
                 FileWriterTool(),
                 DedupTool(),
+                DiscoveryCoverageTool(),
             ],
             verbose=True,
         )

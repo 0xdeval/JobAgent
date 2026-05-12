@@ -6,6 +6,16 @@ scrape_vacancies_task:
     2. Use the "Read a file's content" tool to read knowledge/companies.csv. It contains columns: Company, Career page.
     3. For each company, use the "Scrape website with Selenium" tool to scrape the "Career page" URL.
        Identify all open job positions (title and URL).
+       After each company is handled, use "Discovery Coverage Reporter" with:
+       - run_date: {today}
+       - company and career_page exactly from knowledge/companies.csv
+       - status: "completed" when scraping succeeded, "failed" when the page could not be scraped, or "skipped" only when the company cannot be evaluated from the provided career page at all
+       - jobs_found: total open roles seen before profile filtering
+       - matched_jobs: roles that passed the filtering step
+       - notes: a short summary or error message
+       You MUST record one coverage row for every company from knowledge/companies.csv.
+       Do NOT mark companies as skipped or not_attempted because of a run window, time budget, or batching.
+       The "not_attempted" status is reserved for the pre-run coverage template and must not be reported with the tool.
     4. **FILTERING STEP**: Look at the list of job titles found. Only proceed with roles that are a potential match for the candidate based on the search criteria. Ignore completely irrelevant roles (e.g. if the candidate is an engineer, ignore HR, Legal, or unrelated Sales roles).
     5. For each vacancy that passed the filter:
        a. Use "Vacancy Dedup Checker" with the vacancy URL. If result is "duplicate", skip entirely.
@@ -29,7 +39,7 @@ scrape_vacancies_task:
           }}
           Ensure the directory data/{today}/vacancies/ exists before writing.
           If there are no application questions, use an empty list [].
-    4. Return a JSON list of all vacancy IDs that were successfully saved.
+    6. Return a JSON list of all vacancy IDs that were successfully saved.
   expected_output: >
     A JSON list of vacancy IDs saved, e.g. ["acme-corp--senior-pm", "gnosis--head-of-product"].
     Return an empty list [] if no new vacancies were found or if all were duplicates.

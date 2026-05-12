@@ -122,6 +122,7 @@ Generated files are stored under:
 - `data/<YYYY-MM-DD>/scores/*.json`
 - `data/<YYYY-MM-DD>/applications/<vacancy_id>/...`
 - `data/<YYYY-MM-DD>/company_candidates.csv`
+- `data/<YYYY-MM-DD>/discovery_coverage.csv`
 
 ## Main Commands
 
@@ -132,7 +133,7 @@ source .venv/bin/activate
 ```
 
 - `job_hunting_bot` — Starts the Telegram bot. Output: waits for Telegram actions and handles approvals/status updates.
-- `job_hunting_discover` — Reads `knowledge/companies.csv`, discovers vacancies, scores them, and sends suitable roles to Telegram. Output: `data/<YYYY-MM-DD>/vacancies/`, `data/<YYYY-MM-DD>/scores/`, and application files after approval.
+- `job_hunting_discover` — Reads `knowledge/companies.csv`, discovers vacancies, scores them, and sends suitable roles to Telegram. Output: `data/<YYYY-MM-DD>/discovery_coverage.csv`, `data/<YYYY-MM-DD>/vacancies/`, `data/<YYYY-MM-DD>/scores/`, and application files after approval.
 - `job_hunting_source_companies` — Searches for new company career-page candidates. Output: `data/<YYYY-MM-DD>/company_candidates.csv` and a Telegram review notification when new candidates are found.
 - `job_hunting_advisor` — Starts the Chainlit advisor UI. Output: local web chat for career/application questions.
 
