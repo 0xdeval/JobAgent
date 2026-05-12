@@ -1,42 +1,57 @@
 import json
-from datetime import date
+import csv
 from crewai.flow.flow import Flow, listen, start
 from job_hunting.crews.discovery.crew import DiscoveryCrew
 from job_hunting.config import MIN_SCORE
 from job_hunting.tools.discovery_coverage import DiscoveryCoverageStore
 from job_hunting.tools.telegram_notifier import TelegramNotifierTool
-from job_hunting.utils import scores_dir
+from job_hunting.utils import all_score_files, scores_dir, today, vacancies_dir
 
 
 class DiscoveryFlow(Flow):
+    def __init__(self, *args, crew_factory=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._crew_factory = crew_factory or (lambda: DiscoveryCrew().crew())
 
     @start()
     def run_discovery_crew(self) -> list[dict]:
-        today_str = date.today().isoformat()
-        
+        today_str = today()
+
         # Ensure today's directories exist so agents can write to them
-        from job_hunting.utils import vacancies_dir, scores_dir
         vacancies_dir(today_str).mkdir(parents=True, exist_ok=True)
         scores_dir(today_str).mkdir(parents=True, exist_ok=True)
-        DiscoveryCoverageStore(today_str).initialize_from_companies()
+        coverage_store = DiscoveryCoverageStore(today_str)
+        coverage_store.initialize_from_companies()
 
-        # 1. Run the crew to find NEW vacancies
-        DiscoveryCrew().crew().kickoff(inputs={"today": today_str})
+        companies = self._load_companies()
+        for company, career_page in companies:
+            try:
+                self._crew_factory().kickoff(
+                    inputs={
+                        "today": today_str,
+                        "company": company,
+                        "career_page": career_page,
+                    }
+                )
+            except Exception as exc:
+                coverage_store.record(
+                    company=company,
+                    career_page=career_page,
+                    status="failed",
+                    jobs_found=0,
+                    matched_jobs=0,
+                    notes=self._format_failure_note(exc),
+                )
 
         # 2. Scan ALL historical data for any vacancies that are still 'pending_approval'
         qualifying = []
-        from pathlib import Path
-        data_root = Path("data")
-        
-        # Look in all date directories (e.g., data/2026-05-11/scores/*.json)
-        if data_root.exists():
-            for score_file in data_root.glob("*/scores/*.json"):
-                try:
-                    data = json.loads(score_file.read_text())
-                    if data.get("score", 0) >= MIN_SCORE and data.get("status") == "pending_approval":
-                        qualifying.append(data)
-                except (json.JSONDecodeError, OSError):
-                    continue
+        for score_file in all_score_files():
+            try:
+                data = json.loads(score_file.read_text())
+                if data.get("score", 0) >= MIN_SCORE and data.get("status") == "pending_approval":
+                    qualifying.append(data)
+            except (json.JSONDecodeError, OSError):
+                continue
         return qualifying
 
     @listen(run_discovery_crew)
@@ -57,3 +72,26 @@ class DiscoveryFlow(Flow):
                 date=vacancy["date"],
             )
             print(f"Sent approval request for {vacancy['vacancy_id']}")
+
+    @staticmethod
+    def _format_failure_note(exc: Exception) -> str:
+        return f"Crew kickoff failed: {type(exc).__name__}: {exc}"
+
+    @staticmethod
+    def _load_companies(
+        companies_path: str = "knowledge/companies.csv",
+    ) -> list[tuple[str, str]]:
+        rows: list[tuple[str, str]] = []
+        try:
+            with open(companies_path, newline="", encoding="utf-8-sig") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    company = (row.get("Company") or row.get("company") or "").strip()
+                    career_page = (
+                        row.get("Career page") or row.get("career_page") or ""
+                    ).strip()
+                    if company or career_page:
+                        rows.append((company, career_page))
+        except FileNotFoundError:
+            return rows
+        return rows
