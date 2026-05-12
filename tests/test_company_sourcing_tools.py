@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 
+from crewai.utilities.agent_utils import convert_tools_to_openai_schema
+
 from job_hunting.crews.company_sourcing.crew import CompanySourcingCrew
 from job_hunting.tools.company_public_search import SearchResult
 from job_hunting.tools.company_sourcing_tools import (
@@ -87,6 +89,17 @@ def test_career_page_resolver_tool_delegates_to_service(monkeypatch):
         "company": "Acme",
         "results": [("Acme Jobs", "https://acme.com/jobs")],
     }
+
+
+def test_career_page_resolver_tool_schema_uses_closed_search_result_items():
+    openai_tools, _ = convert_tools_to_openai_schema([CareerPageResolverTool()])
+    parameters = openai_tools[0]["function"]["parameters"]
+    result_item_schema = parameters["properties"]["results"]["items"]
+
+    assert parameters["required"] == ["company", "results"]
+    assert result_item_schema["additionalProperties"] is False
+    assert result_item_schema["required"] == ["title", "url"]
+    assert set(result_item_schema["properties"]) == {"title", "url"}
 
 
 def test_company_candidate_writer_tool_writes_candidates(tmp_path, monkeypatch):

@@ -59,9 +59,14 @@ class PublicCompanySearchTool(BaseTool):
         return json.dumps(payload)
 
 
+class SearchResultPayload(BaseModel):
+    title: str = Field(description="Search result title.")
+    url: str = Field(description="Search result URL.")
+
+
 class CareerPageResolverToolInput(BaseModel):
     company: str = Field(description="Company name to resolve an official career page for.")
-    results: list[dict[str, str]] = Field(
+    results: list[SearchResultPayload] = Field(
         description="Search results list with title and url keys."
     )
 
@@ -73,11 +78,20 @@ class CareerPageResolverTool(BaseTool):
     )
     args_schema: type[BaseModel] = CareerPageResolverToolInput
 
-    def _run(self, company: str, results: list[dict[str, str]]) -> str:
-        parsed_results = [
-            SearchResult(title=item.get("title", ""), url=item.get("url", ""))
-            for item in results
-        ]
+    def _run(
+        self,
+        company: str,
+        results: list[SearchResultPayload | dict[str, str]],
+    ) -> str:
+        parsed_results = []
+        for item in results:
+            payload = (
+                item
+                if isinstance(item, SearchResultPayload)
+                else SearchResultPayload.model_validate(item)
+            )
+            parsed_results.append(SearchResult(title=payload.title, url=payload.url))
+
         return CareerPageResolver().resolve(company=company, results=parsed_results)
 
 

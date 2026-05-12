@@ -14,5 +14,4 @@ data/
 .omc/
 .omx/
 .worktrees/
-knowledge/*
-!knowledge/company-source-queries.yaml
+knowledge/
