@@ -36,9 +36,25 @@ class TelegramNotifierTool(BaseTool):
         score: int,
         vacancy_id: str,
         date: str,
+        chat_id: int | str | None = None,
     ) -> str:
-        asyncio.run(self._send(message_type, company, title, url, score, vacancy_id, date))
+        asyncio.run(
+            self._send(
+                message_type,
+                company,
+                title,
+                url,
+                score,
+                vacancy_id,
+                date,
+                chat_id=chat_id,
+            )
+        )
         return f"Telegram notification sent for {vacancy_id}"
+
+    def send_text(self, text: str, chat_id: int | str | None = None) -> str:
+        asyncio.run(self._send_text(text=text, chat_id=chat_id))
+        return "Telegram message sent"
 
     def send_company_candidates_review(self, run_date: str, candidate_count: int, path: Path) -> str:
         asyncio.run(self._send_company_candidates_review(run_date, candidate_count, path))
@@ -48,6 +64,15 @@ class TelegramNotifierTool(BaseTool):
         asyncio.run(self._send_company_candidate_review(run_date, candidate))
         candidate_id = candidate.get("candidate_id", "")
         return f"Company candidate review notification sent for {candidate_id}"
+
+    async def _send_text(self, text: str, chat_id: int | str | None = None) -> None:
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        await bot.send_message(
+            chat_id=chat_id or TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=None,
+        )
 
     async def _send_company_candidates_review(
         self, run_date: str, candidate_count: int, path: Path
@@ -114,8 +139,10 @@ class TelegramNotifierTool(BaseTool):
         score: int,
         vacancy_id: str,
         date: str,
+        chat_id: int | str | None = None,
     ) -> None:
         bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        target_chat_id = chat_id or TELEGRAM_CHAT_ID
 
         def get_safe_cb(action, v_id, d):
             cb = f"{action}:{v_id}:{d}"
@@ -148,7 +175,7 @@ class TelegramNotifierTool(BaseTool):
             docs = self._collect_application_documents(date=date, vacancy_id=vacancy_id)
             for _, label, doc_path in docs:
                 await bot.send_document(
-                    chat_id=TELEGRAM_CHAT_ID,
+                    chat_id=target_chat_id,
                     document=doc_path,
                     caption=f"{label}: <code>{escape(doc_path.name)}</code>",
                     parse_mode="HTML",
@@ -168,7 +195,7 @@ class TelegramNotifierTool(BaseTool):
             ])
 
         await bot.send_message(
-            chat_id=TELEGRAM_CHAT_ID,
+            chat_id=target_chat_id,
             text=text,
             parse_mode="HTML",
             reply_markup=keyboard,
