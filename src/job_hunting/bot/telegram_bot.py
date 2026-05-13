@@ -1,13 +1,14 @@
-from job_hunting.config import TELEGRAM_ALLOWED_USERS
-from datetime import date
+import csv
 import json
 import logging
 import threading
+
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
-from job_hunting.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+from job_hunting.config import TELEGRAM_ALLOWED_USERS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from job_hunting.tools.company_candidate_store import CompanyCandidateStore
-from job_hunting.utils import scores_dir
+from job_hunting.utils import company_candidates_file, scores_dir
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ def _update_status(vacancy_id: str, date: str, status: str) -> None:
         return
 
     score_path = score_dir / f"{vacancy_id}.json"
-    
+
     # Handle truncated ID if the exact file isn't found
     if not score_path.exists():
         matches = list(score_dir.glob(f"{vacancy_id}*.json"))
@@ -50,21 +51,34 @@ def _parse_callback(data: str) -> tuple[str, str, str]:
 
 def _resolve_company_candidate_id(
     store: CompanyCandidateStore, candidate_id_or_prefix: str
-) -> str:
-    pending_ids = store.list_pending_candidate_ids()
-    if candidate_id_or_prefix in pending_ids:
-        return candidate_id_or_prefix
+) -> tuple[str | None, str | None]:
+    output_file = company_candidates_file(store.run_date)
+    if not output_file.exists():
+        return None, f"Could not find company candidate {candidate_id_or_prefix}"
 
-    matches = [cid for cid in pending_ids if cid.startswith(candidate_id_or_prefix)]
+    with output_file.open("r", newline="", encoding="utf-8-sig") as f:
+        candidate_ids = [
+            row.get("candidate_id", "").strip()
+            for row in csv.DictReader(f)
+            if row.get("candidate_id", "").strip()
+        ]
+
+    if candidate_id_or_prefix in candidate_ids:
+        return candidate_id_or_prefix, None
+
+    matches = [cid for cid in candidate_ids if cid.startswith(candidate_id_or_prefix)]
     if len(matches) == 1:
-        return matches[0]
-
-    return candidate_id_or_prefix
+        return matches[0], None
+    if len(matches) > 1:
+        return None, f"Ambiguous company candidate {candidate_id_or_prefix}"
+    return None, f"Could not find company candidate {candidate_id_or_prefix}"
 
 
 def _handle_company_review(action: str, candidate_id: str, run_date: str) -> tuple[str, bool]:
     store = CompanyCandidateStore(run_date=run_date)
-    resolved_candidate_id = _resolve_company_candidate_id(store, candidate_id)
+    resolved_candidate_id, resolve_error = _resolve_company_candidate_id(store, candidate_id)
+    if resolve_error is not None or resolved_candidate_id is None:
+        return resolve_error or f"Could not find company candidate {candidate_id}", False
 
     if action == "company_approve":
         status = "approved"
@@ -95,21 +109,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     query = update.callback_query
     user_id = query.from_user.id
     chat_id = update.effective_chat.id
-    
+
     logger.info(f"Received callback from user {user_id} in chat {chat_id}")
 
     # Allow if the user ID matches OR if the chat ID matches (for group chats)
     authorized_ids = [str(TELEGRAM_CHAT_ID)]
     if TELEGRAM_ALLOWED_USERS:
         authorized_ids.extend([i.strip() for i in TELEGRAM_ALLOWED_USERS.split(",")])
-        
+
     if str(user_id) not in authorized_ids and str(chat_id) not in authorized_ids:
         logger.warning(f"Ignoring unauthorized click from user {user_id} in chat {chat_id}")
         await query.answer("You are not authorized to perform this action.", show_alert=True)
         return
 
     await query.answer()
-    
+
     try:
         action, vacancy_id, date = _parse_callback(query.data)
 
@@ -120,7 +134,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 return
             await query.edit_message_text(message)
             return
-        
+
         if action == "approve":
             full_id = _update_status(vacancy_id, date, "approved")
             if not full_id:
@@ -147,7 +161,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             full_id = _update_status(vacancy_id, date, "not_applied")
             if full_id:
                 await query.edit_message_text(f"📝 Noted — not applied: {full_id}")
-                
+
     except Exception as e:
         logger.error(f"Error handling callback: {e}")
         await query.edit_message_text(f"❌ Error processing click: {str(e)}")
@@ -155,6 +169,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 def _run_application_flow(vacancy_id: str, date: str) -> None:
     from job_hunting.flows.application_flow import ApplicationFlow
+
     try:
         ApplicationFlow(vacancy_id=vacancy_id, date=date).kickoff()
     except Exception as e:
