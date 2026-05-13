@@ -45,7 +45,7 @@ class CompanyCandidate:
     match_reason: str
     status: str
     discovered_at: str
-    description: str
+    description: str = ""
     reviewed_at: str = ""
     candidate_id: str = ""
 
