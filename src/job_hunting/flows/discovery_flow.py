@@ -1,13 +1,24 @@
 import json
 import csv
 import time
+from pathlib import Path
 from crewai.flow.flow import Flow, listen, start
 from telegram.error import RetryAfter
 from job_hunting.crews.discovery.crew import DiscoveryCrew
 from job_hunting.config import MIN_SCORE
 from job_hunting.tools.discovery_coverage import DiscoveryCoverageStore
+from job_hunting.tools.company_candidate_store import (
+    normalize_company_key,
+    normalize_url_key,
+)
 from job_hunting.tools.telegram_notifier import TelegramNotifierTool
-from job_hunting.utils import all_score_files, scores_dir, today, vacancies_dir
+from job_hunting.utils import (
+    all_score_files,
+    approved_company_candidates_file,
+    scores_dir,
+    today,
+    vacancies_dir,
+)
 
 
 class DiscoveryFlow(Flow):
@@ -33,10 +44,10 @@ class DiscoveryFlow(Flow):
         # Ensure today's directories exist so agents can write to them
         vacancies_dir(today_str).mkdir(parents=True, exist_ok=True)
         scores_dir(today_str).mkdir(parents=True, exist_ok=True)
-        coverage_store = DiscoveryCoverageStore(today_str)
-        coverage_store.initialize_from_companies()
-
         companies = self._load_companies()
+        coverage_store = DiscoveryCoverageStore(today_str)
+        coverage_store.initialize_from_companies(companies=companies)
+
         for company, career_page in companies:
             try:
                 self._crew_factory().kickoff(
@@ -102,21 +113,35 @@ class DiscoveryFlow(Flow):
 
     @staticmethod
     def _load_companies(
-        companies_path: str = "knowledge/companies.csv",
+        company_sources: list[Path] | None = None,
     ) -> list[tuple[str, str]]:
         rows: list[tuple[str, str]] = []
-        try:
-            with open(companies_path, newline="", encoding="utf-8-sig") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    company = (row.get("Company") or row.get("company") or "").strip()
-                    career_page = (
-                        row.get("Career page") or row.get("career_page") or ""
-                    ).strip()
-                    if company or career_page:
+        seen: set[tuple[str, str]] = set()
+        sources = company_sources or [
+            Path("knowledge/companies.csv"),
+            approved_company_candidates_file(),
+        ]
+        for companies_path in sources:
+            try:
+                with companies_path.open(newline="", encoding="utf-8-sig") as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        company = (row.get("Company") or row.get("company") or "").strip()
+                        career_page = (
+                            row.get("Career page") or row.get("career_page") or ""
+                        ).strip()
+                        if not (company or career_page):
+                            continue
+                        dedupe_key = (
+                            normalize_company_key(company),
+                            normalize_url_key(career_page),
+                        )
+                        if dedupe_key in seen:
+                            continue
+                        seen.add(dedupe_key)
                         rows.append((company, career_page))
-        except FileNotFoundError:
-            return rows
+            except FileNotFoundError:
+                continue
         return rows
 
 
