@@ -86,11 +86,15 @@ class TelegramNotifierTool(BaseTool):
             [
                 InlineKeyboardButton(
                     "Approve",
-                    callback_data=f"company_approve:{candidate_id}:{run_date}",
+                    callback_data=self._build_company_callback_data(
+                        "company_approve", candidate_id, run_date
+                    ),
                 ),
                 InlineKeyboardButton(
                     "Decline",
-                    callback_data=f"company_decline:{candidate_id}:{run_date}",
+                    callback_data=self._build_company_callback_data(
+                        "company_decline", candidate_id, run_date
+                    ),
                 ),
             ]
         ])
@@ -185,6 +189,14 @@ class TelegramNotifierTool(BaseTool):
             f"{safe_label}: "
             f"<a href=\"{escape(url, quote=True)}\">Open {safe_label.lower()}</a>"
         )
+
+    @staticmethod
+    def _build_company_callback_data(action: str, candidate_id: str, run_date: str) -> str:
+        callback_data = f"{action}:{candidate_id}:{run_date}"
+        if len(callback_data.encode("utf-8")) <= 64:
+            return callback_data
+        max_id_len = 64 - len(action) - 12
+        return f"{action}:{candidate_id[:max_id_len]}:{run_date}"
 
     @staticmethod
     def _resolve_vacancy_url(url: str, date: str, vacancy_id: str) -> str:

@@ -116,5 +116,62 @@ def test_send_company_candidate_review_uses_html_links_and_buttons():
     )
 
 
+def test_send_company_candidate_review_truncates_callback_data_to_64_bytes():
+    tool = TelegramNotifierTool()
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=46))
+
+    candidate = {
+        "candidate_id": "acme-" + ("x" * 80),
+        "company": "Acme Labs",
+        "career_page": "https://acme.example/jobs",
+        "website": "https://acme.example",
+        "description": "Builds tools.",
+        "industry": "FinTech",
+    }
+
+    with patch("job_hunting.tools.telegram_notifier.Bot", return_value=mock_bot):
+        tool.send_company_candidate_review(
+            run_date="2026-05-13",
+            candidate=candidate,
+        )
+
+    _, kwargs = mock_bot.send_message.call_args
+    approve_cb = kwargs["reply_markup"].inline_keyboard[0][0].callback_data
+    decline_cb = kwargs["reply_markup"].inline_keyboard[0][1].callback_data
+    assert len(approve_cb.encode("utf-8")) <= 64
+    assert len(decline_cb.encode("utf-8")) <= 64
+    assert approve_cb.startswith("company_approve:")
+    assert decline_cb.startswith("company_decline:")
+    assert approve_cb.endswith(":2026-05-13")
+    assert decline_cb.endswith(":2026-05-13")
+
+
 def test_build_company_link_line_handles_missing_url():
     assert TelegramNotifierTool._build_company_link_line("Website", "") == "Website unavailable"
+
+
+def test_send_company_candidates_message_has_no_inline_keyboard(tmp_path: Path):
+    tool = TelegramNotifierTool()
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=45))
+    mock_bot.send_document = AsyncMock()
+
+    csv_path = tmp_path / "company_candidates.csv"
+    csv_path.write_text("company,status\nAcme,pending\n")
+
+    with patch("job_hunting.tools.telegram_notifier.Bot", return_value=mock_bot):
+        result = tool.send_company_candidates_review(
+            run_date="2026-05-11",
+            candidate_count=7,
+            path=csv_path,
+        )
+
+    assert result == "Company candidates review notification sent for 2026-05-11"
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["parse_mode"] == "HTML"
+    assert kwargs["reply_markup"] is None
+    assert "Candidates: <b>7</b>" in kwargs["text"]
+    assert str(csv_path) in kwargs["text"]
+    assert "status=approved" in kwargs["text"]
+    mock_bot.send_document.assert_not_called()
