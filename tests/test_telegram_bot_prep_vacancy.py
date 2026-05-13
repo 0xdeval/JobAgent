@@ -128,8 +128,12 @@ def test_run_registers_valid_command_handlers(monkeypatch):
         type(call.args[0]).__name__ for call in app.add_handler.call_args_list
     ]
     assert registered_handler_types == [
+        "TypeHandler",
         "CommandHandler",
         "MessageHandler",
         "CallbackQueryHandler",
     ]
-    app.run_polling.assert_called_once_with(drop_pending_updates=True)
+    app.run_polling.assert_called_once_with(
+        drop_pending_updates=True,
+        allowed_updates=telegram_bot.Update.ALL_TYPES,
+    )

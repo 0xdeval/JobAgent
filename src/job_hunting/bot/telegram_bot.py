@@ -12,6 +12,7 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
     MessageHandler,
+    TypeHandler,
     filters,
 )
 from job_hunting.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
@@ -38,6 +39,27 @@ def _is_authorized(user_id: int | str, chat_id: int | str) -> bool:
 def _is_http_url(value: str) -> bool:
     parsed = urlparse(value.strip())
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message:
+        logger.info("Received Telegram update without message: %s", update.update_id)
+        return
+
+    logger.info(
+        "Received Telegram message update_id=%s chat_id=%s chat_type=%s user_id=%s text=%r entities=%s",
+        update.update_id,
+        update.effective_chat.id if update.effective_chat else None,
+        update.effective_chat.type if update.effective_chat else None,
+        update.effective_user.id if update.effective_user else None,
+        message.text,
+        [(entity.type, entity.offset, entity.length) for entity in (message.entities or [])],
+    )
+
+
+async def log_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.exception("Unhandled Telegram bot error while processing update %s", update, exc_info=context.error)
 
 
 def _update_status(vacancy_id: str, date: str, status: str) -> None:
@@ -195,10 +217,12 @@ def _run_prep_vacancy_flow(url: str, chat_id: int, user_id: int) -> None:
 
 def run() -> None:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(TypeHandler(Update, log_update), group=-1)
     app.add_handler(CommandHandler("prep_vacancy", handle_prep_vacancy_command))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prep_vacancy_url)
     )
     app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_error_handler(log_error)
     logger.info("Bot started. Listening for callbacks and commands…")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
