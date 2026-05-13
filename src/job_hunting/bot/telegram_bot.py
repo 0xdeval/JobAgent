@@ -3,13 +3,41 @@ from datetime import date
 import json
 import logging
 import threading
+from urllib.parse import urlparse
+
 from telegram import Update
-from telegram.ext import Application, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 from job_hunting.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from job_hunting.utils import scores_dir
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+PENDING_PREP_VACANCY: dict[tuple[int, int], dict[str, str]] = {}
+
+
+def _authorized_ids() -> list[str]:
+    authorized_ids = [str(TELEGRAM_CHAT_ID)]
+    if TELEGRAM_ALLOWED_USERS:
+        authorized_ids.extend([i.strip() for i in TELEGRAM_ALLOWED_USERS.split(",")])
+    return authorized_ids
+
+
+def _is_authorized(user_id: int | str, chat_id: int | str) -> bool:
+    authorized_ids = _authorized_ids()
+    return str(user_id) in authorized_ids or str(chat_id) in authorized_ids
+
+
+def _is_http_url(value: str) -> bool:
+    parsed = urlparse(value.strip())
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 def _update_status(vacancy_id: str, date: str, status: str) -> None:
@@ -54,12 +82,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     logger.info(f"Received callback from user {user_id} in chat {chat_id}")
 
-    # Allow if the user ID matches OR if the chat ID matches (for group chats)
-    authorized_ids = [str(TELEGRAM_CHAT_ID)]
-    if TELEGRAM_ALLOWED_USERS:
-        authorized_ids.extend([i.strip() for i in TELEGRAM_ALLOWED_USERS.split(",")])
-        
-    if str(user_id) not in authorized_ids and str(chat_id) not in authorized_ids:
+    if not _is_authorized(user_id, chat_id):
         logger.warning(f"Ignoring unauthorized click from user {user_id} in chat {chat_id}")
         await query.answer("You are not authorized to perform this action.", show_alert=True)
         return
@@ -109,8 +132,68 @@ def _run_application_flow(vacancy_id: str, date: str) -> None:
         logger.error(f"ApplicationFlow failed for {vacancy_id}: {e}")
 
 
+async def handle_prep_vacancy_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    if not _is_authorized(user_id, chat_id):
+        await update.effective_message.reply_text(
+            "You are not authorized to use this command."
+        )
+        return
+
+    key = (int(chat_id), int(user_id))
+    PENDING_PREP_VACANCY.pop(key, None)
+    PENDING_PREP_VACANCY[key] = {"status": "waiting_for_url"}
+    await update.effective_message.reply_text("Send the vacancy URL.")
+
+
+async def handle_prep_vacancy_url(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if not update.effective_message or not update.effective_message.text:
+        return
+
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    key = (int(chat_id), int(user_id))
+    if key not in PENDING_PREP_VACANCY:
+        return
+
+    url = update.effective_message.text.strip()
+    if url.startswith("/prep-vacancy"):
+        await handle_prep_vacancy_command(update, context)
+        return
+
+    if not _is_http_url(url):
+        await update.effective_message.reply_text("Please send a valid HTTP(S) URL.")
+        return
+
+    PENDING_PREP_VACANCY.pop(key, None)
+    await update.effective_message.reply_text(f"Started preparing application for: {url}")
+    threading.Thread(
+        target=_run_prep_vacancy_flow,
+        args=(url, int(chat_id), int(user_id)),
+        daemon=True,
+    ).start()
+
+
+def _run_prep_vacancy_flow(url: str, chat_id: int, user_id: int) -> None:
+    from job_hunting.flows.prep_vacancy_flow import PrepVacancyFlow
+
+    try:
+        PrepVacancyFlow(url=url, chat_id=chat_id, user_id=user_id).kickoff()
+    except Exception as e:
+        logger.error(f"PrepVacancyFlow failed for {url}: {e}")
+
+
 def run() -> None:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(CommandHandler("prep-vacancy", handle_prep_vacancy_command))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prep_vacancy_url)
+    )
     app.add_handler(CallbackQueryHandler(handle_callback))
-    logger.info("Bot started. Listening for callbacks…")
+    logger.info("Bot started. Listening for callbacks and commands…")
     app.run_polling(drop_pending_updates=True)
