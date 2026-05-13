@@ -153,3 +153,25 @@ def test_prep_vacancy_flow_reports_extraction_failure(tmp_path, monkeypatch):
     assert result["status"] == "failed"
     assert "could not extract title" in notifier.texts[-1][0]
     assert not Path("data/2026-05-13/applications").exists()
+
+
+def test_parse_direct_vacancy_result_accepts_json_payload():
+    payload = json.dumps(
+        {
+            "company": "Acme",
+            "title": "Senior PM",
+            "description": "Own product strategy.",
+            "questions": ["Why this role?"],
+            "requires_cover_letter": False,
+        }
+    )
+
+    result = prep_module.parse_direct_vacancy_result(payload)
+
+    assert result == PreparedVacancy(
+        company="Acme",
+        title="Senior PM",
+        description="Own product strategy.",
+        questions=["Why this role?"],
+        requires_cover_letter=False,
+    )
