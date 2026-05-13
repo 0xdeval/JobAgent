@@ -1,6 +1,9 @@
 import csv
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
+
+from telegram.error import RetryAfter
 
 from job_hunting.flows import discovery_flow as discovery_flow_module
 from job_hunting.tools.discovery_coverage import DiscoveryCoverageStore
@@ -197,3 +200,64 @@ def test_run_discovery_crew_still_returns_historical_pending_scores(
     result = flow.run_discovery_crew()
 
     assert result == [historical_score]
+
+
+def test_send_approval_requests_retries_after_telegram_flood_control():
+    notifier = MagicMock()
+    notifier._run.side_effect = [RetryAfter(43), "sent"]
+    sleep_calls: list[float] = []
+    flow = DiscoveryFlow(
+        notifier_factory=lambda: notifier,
+        sleep=sleep_calls.append,
+        approval_send_delay_seconds=0,
+    )
+
+    flow.send_approval_requests(
+        [
+            {
+                "company": "Acme",
+                "title": "Product Manager",
+                "url": "https://acme.com/jobs/pm",
+                "score": 90,
+                "vacancy_id": "acme--pm",
+                "date": "2026-05-13",
+            }
+        ]
+    )
+
+    assert notifier._run.call_count == 2
+    assert sleep_calls == [43]
+
+
+def test_send_approval_requests_paces_multiple_telegram_messages():
+    notifier = MagicMock()
+    sleep_calls: list[float] = []
+    flow = DiscoveryFlow(
+        notifier_factory=lambda: notifier,
+        sleep=sleep_calls.append,
+        approval_send_delay_seconds=2.5,
+    )
+
+    flow.send_approval_requests(
+        [
+            {
+                "company": "Acme",
+                "title": "Product Manager",
+                "url": "https://acme.com/jobs/pm",
+                "score": 90,
+                "vacancy_id": "acme--pm",
+                "date": "2026-05-13",
+            },
+            {
+                "company": "Beta",
+                "title": "Senior Product Manager",
+                "url": "https://beta.com/jobs/spm",
+                "score": 88,
+                "vacancy_id": "beta--spm",
+                "date": "2026-05-13",
+            },
+        ]
+    )
+
+    assert notifier._run.call_count == 2
+    assert sleep_calls == [2.5]

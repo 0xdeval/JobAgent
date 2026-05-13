@@ -1,6 +1,8 @@
 import json
 import csv
+import time
 from crewai.flow.flow import Flow, listen, start
+from telegram.error import RetryAfter
 from job_hunting.crews.discovery.crew import DiscoveryCrew
 from job_hunting.config import MIN_SCORE
 from job_hunting.tools.discovery_coverage import DiscoveryCoverageStore
@@ -9,9 +11,20 @@ from job_hunting.utils import all_score_files, scores_dir, today, vacancies_dir
 
 
 class DiscoveryFlow(Flow):
-    def __init__(self, *args, crew_factory=None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        crew_factory=None,
+        notifier_factory=None,
+        sleep=None,
+        approval_send_delay_seconds: float = 1.0,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._crew_factory = crew_factory or (lambda: DiscoveryCrew().crew())
+        self._notifier_factory = notifier_factory or TelegramNotifierTool
+        self._sleep = sleep or time.sleep
+        self._approval_send_delay_seconds = approval_send_delay_seconds
 
     @start()
     def run_discovery_crew(self) -> list[dict]:
@@ -60,18 +73,28 @@ class DiscoveryFlow(Flow):
             print("No qualifying vacancies found today.")
             return
 
-        notifier = TelegramNotifierTool()
-        for vacancy in qualifying_vacancies:
-            notifier._run(
-                message_type="approval",
-                company=vacancy["company"],
-                title=vacancy["title"],
-                url=vacancy.get("url", ""),
-                score=vacancy["score"],
-                vacancy_id=vacancy["vacancy_id"],
-                date=vacancy["date"],
-            )
+        notifier = self._notifier_factory()
+        for index, vacancy in enumerate(qualifying_vacancies):
+            self._send_approval_request_with_retry(notifier, vacancy)
             print(f"Sent approval request for {vacancy['vacancy_id']}")
+            if index < len(qualifying_vacancies) - 1 and self._approval_send_delay_seconds > 0:
+                self._sleep(self._approval_send_delay_seconds)
+
+    def _send_approval_request_with_retry(self, notifier, vacancy: dict) -> None:
+        while True:
+            try:
+                notifier._run(
+                    message_type="approval",
+                    company=vacancy["company"],
+                    title=vacancy["title"],
+                    url=vacancy.get("url", ""),
+                    score=vacancy["score"],
+                    vacancy_id=vacancy["vacancy_id"],
+                    date=vacancy["date"],
+                )
+                return
+            except RetryAfter as exc:
+                self._sleep(_retry_after_seconds(exc))
 
     @staticmethod
     def _format_failure_note(exc: Exception) -> str:
@@ -95,3 +118,10 @@ class DiscoveryFlow(Flow):
         except FileNotFoundError:
             return rows
         return rows
+
+
+def _retry_after_seconds(exc: RetryAfter) -> float:
+    retry_after = exc.retry_after
+    if hasattr(retry_after, "total_seconds"):
+        return retry_after.total_seconds()
+    return float(retry_after)
