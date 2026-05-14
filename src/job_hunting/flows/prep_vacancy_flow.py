@@ -220,17 +220,20 @@ class PrepVacancyFlow(Flow):
                 notifier=None,
             ).kickoff()
             self._send_artifact_progress(run_date, vacancy_id, score)
-            self._notifier._run(
-                message_type="completion",
-                company=vacancy["company"],
-                title=vacancy["title"],
-                url=vacancy.get("url", self._url),
-                score=score.get("score", 100),
+            notification_error = self._send_completion_notification(
+                run_date=run_date,
                 vacancy_id=vacancy_id,
-                date=run_date,
-                chat_id=self._chat_id,
+                vacancy=vacancy,
+                score=score,
             )
-            return {"status": "completed", "vacancy_id": vacancy_id, "date": run_date}
+            result = {
+                "status": "completed",
+                "vacancy_id": vacancy_id,
+                "date": run_date,
+            }
+            if notification_error:
+                result["notification_error"] = notification_error
+            return result
         except Exception as exc:
             self._notify(
                 f"Application generation failed for <code>{vacancy_id}</code> "
@@ -242,6 +245,29 @@ class PrepVacancyFlow(Flow):
                 "date": run_date,
                 "error": str(exc),
             }
+
+    def _send_completion_notification(
+        self, run_date: str, vacancy_id: str, vacancy: dict, score: dict
+    ) -> str | None:
+        try:
+            self._notifier._run(
+                message_type="completion",
+                company=vacancy["company"],
+                title=vacancy["title"],
+                url=vacancy.get("url", self._url),
+                score=score.get("score", 100),
+                vacancy_id=vacancy_id,
+                date=run_date,
+                chat_id=self._chat_id,
+            )
+        except Exception as exc:
+            logger.warning("Failed to send prep vacancy completion notification: %s", exc)
+            self._notify(
+                f"Application artifacts are ready for <code>{vacancy_id}</code>, "
+                f"but the completion notification failed: {type(exc).__name__}: {exc}"
+            )
+            return str(exc)
+        return None
 
     def _send_artifact_progress(self, run_date: str, vacancy_id: str, score: dict) -> None:
         app_dir = Path("data") / run_date / "applications" / vacancy_id
