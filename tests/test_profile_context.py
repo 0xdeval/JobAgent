@@ -23,6 +23,14 @@ def test_loads_example_profile_yaml():
     assert config.profile_sections["skills"] == Path("profile/skills.md")
 
 
+def test_builds_application_context_from_example_profile_yaml():
+    context = build_application_context(PROJECT_ROOT / "examples/knowledge/profile.yaml")
+
+    assert "Alex Candidate" in context.identity_context
+    assert "Example Product Summit" in context.profile_sections_context
+    assert "Product discovery in regulated markets" in context.profile_sections_context
+
+
 def test_rejects_unknown_profile_section_key(tmp_path):
     profile_yaml = tmp_path / "profile.yaml"
     profile_yaml.write_text(
