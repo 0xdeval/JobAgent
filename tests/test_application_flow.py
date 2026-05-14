@@ -65,6 +65,7 @@ def test_application_flow_passes_prepared_profile_context(tmp_path, monkeypatch)
     assert inputs["identity_context"] == "identity context"
     assert inputs["profile_sections_context"] == "profile sections context"
     assert inputs["profile_section_keys"] == "summary, skills"
+    assert inputs["artifact_filename_base"] == "Acme-SeniorPM"
 
 
 def test_notify_completion_does_not_fail_when_telegram_completion_times_out(

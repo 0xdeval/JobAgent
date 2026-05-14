@@ -9,6 +9,7 @@ from typing import Callable, Protocol
 from crewai import Agent, Crew, Process, Task
 from crewai.flow.flow import Flow, start
 
+from job_hunting.application_artifacts import artifact_filename_candidates
 from job_hunting.config import get_llm
 from job_hunting.flows.application_flow import ApplicationFlow
 from job_hunting.tools import SafeSeleniumScrapingTool
@@ -219,7 +220,7 @@ class PrepVacancyFlow(Flow):
                 date=run_date,
                 notifier=None,
             ).kickoff()
-            self._send_artifact_progress(run_date, vacancy_id, score)
+            self._send_artifact_progress(run_date, vacancy_id, vacancy, score)
             notification_error = self._send_completion_notification(
                 run_date=run_date,
                 vacancy_id=vacancy_id,
@@ -269,15 +270,31 @@ class PrepVacancyFlow(Flow):
             return str(exc)
         return None
 
-    def _send_artifact_progress(self, run_date: str, vacancy_id: str, score: dict) -> None:
+    def _send_artifact_progress(
+        self, run_date: str, vacancy_id: str, vacancy: dict, score: dict
+    ) -> None:
         app_dir = Path("data") / run_date / "applications" / vacancy_id
-        if (app_dir / "qa-answers.md").exists():
+        company = vacancy["company"]
+        title = vacancy["title"]
+        qa_candidates = artifact_filename_candidates(
+            company, title, "QA", [".md"], ["qa-answers.md"]
+        )
+        cv_candidates = artifact_filename_candidates(
+            company, title, "CV", [".pdf", ".tex"], ["cv.pdf", "cv.tex"]
+        )
+        cover_letter_candidates = artifact_filename_candidates(
+            company,
+            title,
+            "CoverLetter",
+            [".pdf", ".tex"],
+            ["cover-letter.pdf", "cover-letter.tex"],
+        )
+
+        if any((app_dir / candidate).exists() for candidate in qa_candidates):
             self._notify("Q&amp;A answers created.")
-        if (app_dir / "cv.pdf").exists() or (app_dir / "cv.tex").exists():
+        if any((app_dir / candidate).exists() for candidate in cv_candidates):
             self._notify("CV created.")
-        if (app_dir / "cover-letter.pdf").exists() or (
-            app_dir / "cover-letter.tex"
-        ).exists():
+        if any((app_dir / candidate).exists() for candidate in cover_letter_candidates):
             self._notify("Cover letter created.")
         elif not score.get("requires_cover_letter", False):
             self._notify("Cover letter not required.")

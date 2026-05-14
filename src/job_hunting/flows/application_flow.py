@@ -1,6 +1,8 @@
 import json
 import logging
 from crewai.flow.flow import Flow, listen, start
+
+from job_hunting.application_artifacts import artifact_filename_base
 from job_hunting.crews.application.crew import ApplicationCrew
 from job_hunting.profile_context import build_application_context
 from job_hunting.tools.telegram_notifier import TelegramNotifierTool
@@ -46,6 +48,9 @@ class ApplicationFlow(Flow):
                 "identity_context": profile_context.identity_context,
                 "profile_sections_context": profile_context.profile_sections_context,
                 "profile_section_keys": ", ".join(profile_context.section_keys),
+                "artifact_filename_base": artifact_filename_base(
+                    vacancy["company"], vacancy["title"]
+                ),
             }
         )
         return {"vacancy": vacancy, "score": score}

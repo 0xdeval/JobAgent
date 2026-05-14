@@ -34,9 +34,11 @@ def test_prep_vacancy_flow_writes_files_and_runs_application(tmp_path, monkeypat
             application_calls.append((self.vacancy_id, self.date, self.notifier))
             app_dir = Path("data") / self.date / "applications" / self.vacancy_id
             app_dir.mkdir(parents=True, exist_ok=True)
-            (app_dir / "qa-answers.md").write_text("answers", encoding="utf-8")
-            (app_dir / "cv.pdf").write_text("cv", encoding="utf-8")
-            (app_dir / "cover-letter.pdf").write_text("letter", encoding="utf-8")
+            (app_dir / "Acme-SeniorPM-QA.md").write_text("answers", encoding="utf-8")
+            (app_dir / "Acme-SeniorPM-CV.pdf").write_text("cv", encoding="utf-8")
+            (app_dir / "Acme-SeniorPM-CoverLetter.pdf").write_text(
+                "letter", encoding="utf-8"
+            )
 
     notifier = _Notifier()
     flow = PrepVacancyFlow(

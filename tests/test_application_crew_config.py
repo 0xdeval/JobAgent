@@ -35,3 +35,18 @@ def test_cv_and_cover_letter_tasks_receive_identity_context():
 
     assert "{identity_context}" in tasks["cv_task"]["description"]
     assert "{identity_context}" in tasks["cover_letter_task"]["description"]
+
+
+def test_artifact_tasks_use_company_title_filename_base():
+    tasks = _tasks_config()
+
+    assert "data/{date}/applications/{vacancy_id}/{artifact_filename_base}-QA.md" in (
+        tasks["qa_task"]["description"]
+    )
+    assert "data/{date}/applications/{vacancy_id}/{artifact_filename_base}-CV.tex" in (
+        tasks["cv_task"]["description"]
+    )
+    assert (
+        "data/{date}/applications/{vacancy_id}/{artifact_filename_base}-CoverLetter.tex"
+        in tasks["cover_letter_task"]["description"]
+    )
