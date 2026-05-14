@@ -7,13 +7,18 @@ profile_brief_task:
     - Description: {description}
     - Requires cover letter: {requires_cover_letter}
 
-    Read all profile files from knowledge/profile/ using FileReadTool:
-    - profile-summary.md
-    - work-experience.md
-    - personal-projects.md
-    - general-info.md
-    - public-performance.md
-    - values-and-interests.md
+    Candidate identity context:
+    {identity_context}
+
+    Prepared profile sections available for this application:
+    {profile_section_keys}
+
+    Profile sections context:
+    {profile_sections_context}
+
+    Use only the candidate facts in the identity context and profile sections context.
+    Do not read additional files from knowledge/profile/. Do not use facts absent
+    from the provided contexts.
 
     Produce a structured profile brief (max 600 words) with:
     1. Candidate overview — 2-3 sentence summary tailored to this role
@@ -57,6 +62,9 @@ cv_task:
     - Title: {title}
     - Description: {description}
 
+    Renderer-visible candidate identity fields:
+    {identity_context}
+
     Steps:
     1. Read personalized-outreach/best-practices/cv.md with FileReadTool to understand
        the required quality bar for format, density, and tone.
@@ -96,6 +104,9 @@ cover_letter_task:
     - Company: {company}
     - Title: {title}
     - Description: {description}
+
+    Signature and candidate identity context:
+    {identity_context}
 
     IMPORTANT: First check the requires_cover_letter field in the profile brief
     from profile_brief_task. If it is false, output exactly:

@@ -1,6 +1,7 @@
 import json
 from crewai.flow.flow import Flow, listen, start
 from job_hunting.crews.application.crew import ApplicationCrew
+from job_hunting.profile_context import build_application_context
 from job_hunting.tools.telegram_notifier import TelegramNotifierTool
 from job_hunting.utils import vacancies_dir, scores_dir
 
@@ -24,6 +25,7 @@ class ApplicationFlow(Flow):
 
         vacancy = json.loads(vacancy_path.read_text())
         score = json.loads(score_path.read_text())
+        profile_context = build_application_context()
 
         score["status"] = "approved"
         score_path.write_text(json.dumps(score, indent=2))
@@ -38,6 +40,9 @@ class ApplicationFlow(Flow):
                 "vacancy_id": self._vacancy_id,
                 "date": self._date,
                 "requires_cover_letter": str(score.get("requires_cover_letter", False)).lower(),
+                "identity_context": profile_context.identity_context,
+                "profile_sections_context": profile_context.profile_sections_context,
+                "profile_section_keys": ", ".join(profile_context.section_keys),
             }
         )
         return {"vacancy": vacancy, "score": score}
