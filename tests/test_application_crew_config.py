@@ -20,6 +20,16 @@ def test_profile_brief_task_uses_prepared_application_context():
     assert "general-info.md" not in description
 
 
+def test_application_artifact_tasks_do_not_read_profile_files_directly():
+    tasks = _tasks_config()
+
+    for task_name in ("cv_task", "cover_letter_task"):
+        description = tasks[task_name]["description"]
+        assert "Do not read files under knowledge/profile/" in description
+        assert "knowledge/profile/work-experience.md" not in description
+        assert "projects.md" not in description
+
+
 def test_cv_and_cover_letter_tasks_receive_identity_context():
     tasks = _tasks_config()
 

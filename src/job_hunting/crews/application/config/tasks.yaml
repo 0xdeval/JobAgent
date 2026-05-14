@@ -65,6 +65,9 @@ cv_task:
     Renderer-visible candidate identity fields:
     {identity_context}
 
+    Do not read files under knowledge/profile/. The profile brief from
+    profile_brief_task is the only source of candidate evidence for this task.
+
     Steps:
     1. Read personalized-outreach/best-practices/cv.md with FileReadTool to understand
        the required quality bar for format, density, and tone.
@@ -83,8 +86,9 @@ cv_task:
          }},
          "skills": "Tailored skills list for this vacancy"
        }}
-       IDs come from knowledge/profile/work-experience.md: lowercase company name, spaces to hyphens,
-       remove special chars. E.g. "Blockscout" → "blockscout".
+       Use IDs derived from company and project names present in the profile brief:
+       lowercase names, replace spaces with hyphens, and remove special chars.
+       E.g. "Blockscout" → "blockscout".
        Include at least 4 work experiences. Bold key metrics with **double asterisks**.
        Apply the anti-slop filter: no "spearheaded", "leveraged", "streamlined", etc.
        No PascalCase in sentences.
@@ -107,6 +111,9 @@ cover_letter_task:
 
     Signature and candidate identity context:
     {identity_context}
+
+    Do not read files under knowledge/profile/. The profile brief from
+    profile_brief_task is the only source of candidate evidence for this task.
 
     IMPORTANT: First check the requires_cover_letter field in the profile brief
     from profile_brief_task. If it is false, output exactly:
