@@ -183,7 +183,8 @@ class TelegramNotifierTool(BaseTool):
 
             attached_files = ", ".join(label for _, label, _ in docs) if docs else "none found"
             text = (
-                f"📋 <b>{safe_company} — {safe_title}</b>\n"
+                "📋 Here are all necessary files for applying to "
+                f"<b>{safe_company} — {safe_title}</b>\n"
                 f"🔗 {self._build_vacancy_link_line(resolved_url)}\n"
                 f"📎 Attached files: <b>{escape(attached_files)}</b>"
             )

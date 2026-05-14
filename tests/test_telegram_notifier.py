@@ -76,6 +76,7 @@ def test_send_completion_message_attaches_generated_documents(tmp_path: Path):
 
     _, message_kwargs = mock_bot.send_message.call_args
     assert message_kwargs["parse_mode"] == "HTML"
+    assert "Here are all necessary files for applying to" in message_kwargs["text"]
     assert "Attached files" in message_kwargs["text"]
 
 

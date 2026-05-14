@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from job_hunting.flows.application_flow import ApplicationFlow
 from job_hunting.profile_context import ApplicationProfileContext
 
@@ -63,3 +65,46 @@ def test_application_flow_passes_prepared_profile_context(tmp_path, monkeypatch)
     assert inputs["identity_context"] == "identity context"
     assert inputs["profile_sections_context"] == "profile sections context"
     assert inputs["profile_section_keys"] == "summary, skills"
+
+
+def test_notify_completion_does_not_fail_when_telegram_completion_times_out(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    score_dir = Path("data/2026-05-14/scores")
+    score_dir.mkdir(parents=True)
+    score_path = score_dir / "acme--pm.json"
+    score = {
+        "vacancy_id": "acme--pm",
+        "date": "2026-05-14",
+        "company": "Acme",
+        "title": "Senior PM",
+        "score": 90,
+        "status": "approved",
+    }
+    score_path.write_text(json.dumps(score), encoding="utf-8")
+    notifier = MagicMock()
+    notifier._run.side_effect = TimeoutError("Timed out")
+    flow = ApplicationFlow(
+        vacancy_id="acme--pm",
+        date="2026-05-14",
+        notifier=notifier,
+    )
+
+    try:
+        flow.notify_completion(
+            {
+                "vacancy": {
+                    "company": "Acme",
+                    "title": "Senior PM",
+                    "url": "https://acme.example/jobs/pm",
+                },
+                "score": score,
+            }
+        )
+    except TimeoutError as exc:
+        pytest.fail(f"completion notification timeout should be non-fatal: {exc}")
+
+    updated_score = json.loads(score_path.read_text(encoding="utf-8"))
+    assert updated_score["status"] == "documents_ready"
+    assert updated_score["notification_error"] == "Timed out"
