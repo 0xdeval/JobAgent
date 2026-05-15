@@ -68,13 +68,14 @@ What each value means:
 
 ## 3. Fill Files Before Starting
 
-The required setup files are:
+The common setup files are:
 
 ```text
 knowledge/
 ├── companies.csv
 ├── company-source-queries.yaml
 ├── profile.yaml
+├── search-criteria.md
 └── profile/
     ├── profile-summary.md
     ├── work-experience.md
@@ -142,7 +143,9 @@ profile_sections:
   values: profile/values-and-interests.md
 ```
 
-`knowledge/search-criteria.md` is deprecated. Put search controls in `knowledge/profile.yaml` under `search`.
+`knowledge/search-criteria.md` is deprecated for vacancy discovery and application generation. Put search controls in `knowledge/profile.yaml` under `search`.
+
+Current company sourcing still reads `knowledge/search-criteria.md` as a legacy input. Keep a short version of this file only if you run `job_hunting_source_companies`; otherwise `knowledge/profile.yaml` is the source of truth.
 
 ### `knowledge/companies.csv`
 
@@ -200,7 +203,7 @@ Supported template variables:
 - `{industry}`
 - `{domain}`
 
-The crew uses profile/search context and this query config to decide which roles, seniorities, and industries to put into these templates.
+The crew uses the legacy `knowledge/search-criteria.md` content plus this query config to decide which roles, seniorities, and industries to put into these templates. Vacancy discovery does not use this file; it uses `knowledge/profile.yaml.search`.
 
 ## 4. Fill Profile Files
 
@@ -239,6 +242,14 @@ job_hunting_bot
 
 Use it when you want Telegram approval cards, status updates, and review notifications. Keep it running in one terminal.
 
+Prepare one vacancy URL directly from Telegram:
+
+```text
+/prep_vacancy
+```
+
+After the bot asks for a URL, send the vacancy URL in the same chat. The bot extracts the vacancy, creates a local vacancy/score record, runs application generation, sends progress updates, and returns the generated artifacts to that chat.
+
 Run vacancy discovery:
 
 ```bash
@@ -252,6 +263,12 @@ Output:
 - `data/<YYYY-MM-DD>/vacancies/*.json`
 - `data/<YYYY-MM-DD>/scores/*.json`
 - `data/<YYYY-MM-DD>/applications/<vacancy_id>/` after approval
+
+Application artifact filenames use the company and role in PascalCase:
+
+- `Kraken-SeniorProductManager-CV.pdf`
+- `Kraken-SeniorProductManager-QA.md`
+- `Kraken-SeniorProductManager-CoverLetter.pdf`
 
 Run company sourcing:
 
@@ -290,7 +307,7 @@ First-time setup:
 Ongoing usage:
 
 - Run `job_hunting_discover` daily or every few hours.
-- Run `job_hunting_source_companies` when you want more company sources.
+- Run `job_hunting_source_companies` when you want more company sources; keep `knowledge/search-criteria.md` filled until company sourcing is migrated to `profile.yaml`.
 - Review `data/<YYYY-MM-DD>/company_candidates.csv` as the audit log.
 - Approve or decline candidates directly in Telegram (`Approve` appends to `knowledge/approved-company-candidates.csv`).
 - Run `job_hunting_discover` again to search vacancies from the expanded company list.
@@ -323,7 +340,7 @@ If nothing is found:
 
 If company sourcing finds irrelevant companies:
 
-- Make `knowledge/profile.yaml.search` more specific.
+- Make `knowledge/search-criteria.md` more specific.
 - Remove broad templates from `knowledge/company-source-queries.yaml`.
 - Add clearer industries and exclusions.
 
