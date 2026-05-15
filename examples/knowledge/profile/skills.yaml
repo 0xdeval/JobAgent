@@ -1,0 +1,13 @@
+skill_groups:
+  - name: Product
+    skills:
+      - Product strategy
+      - Product discovery
+      - Roadmap prioritization
+      - Growth product management
+  - name: Web3 / FinTech
+    skills:
+      - Web3
+      - DeFi
+      - Stablecoin payments
+      - Blockchain infrastructure

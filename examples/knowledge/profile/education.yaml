@@ -1,0 +1,9 @@
+education:
+  - id: hse-applied-math
+    institution: Higher School of Economics
+    degree: Bachelor's degree
+    field: Computational and Applied Mathematics
+    period:
+      start: 2016-09
+      end: 2020-06
+    grade: GPA 8/10
