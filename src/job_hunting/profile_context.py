@@ -75,7 +75,7 @@ class SearchConfig:
     seniority: SenioritySearchConfig
     locations: LocationsSearchConfig
     industries: IndustriesSearchConfig
-    salary: str
+    salary: str | None
     dealbreakers: tuple[str, ...]
 
 
@@ -242,7 +242,7 @@ def _parse_search(raw: dict[str, Any]) -> SearchConfig:
                 )
             ),
         ),
-        salary=_require_string(raw, "salary", prefix="search"),
+        salary=_optional_string(raw, "salary", prefix="search"),
         dealbreakers=tuple(
             _string_list(raw.get("dealbreakers", []), "search.dealbreakers")
         ),
@@ -289,23 +289,27 @@ def _format_identity_context(identity: IdentityConfig) -> str:
 
 def _format_discovery_filter_context(config: ProfileConfig) -> str:
     search = config.search
-    return "\n".join(
+    lines = [
+        f"Primary role: {search.roles.primary}",
+        f"Accepted roles: {', '.join(search.roles.accepted)}",
+        f"Excluded roles: {', '.join(search.roles.excluded)}",
+        f"Target seniority: {search.seniority.target}",
+        f"Accepted seniority: {', '.join(search.seniority.accepted)}",
+        f"Excluded seniority: {', '.join(search.seniority.excluded)}",
+        f"Accepted locations: {', '.join(search.locations.accepted)}",
+        f"Excluded locations: {', '.join(search.locations.excluded)}",
+        f"Preferred industries: {', '.join(search.industries.preferred)}",
+    ]
+    if search.salary:
+        lines.append(f"Salary threshold: {search.salary}")
+    lines.extend(
         [
-            f"Primary role: {search.roles.primary}",
-            f"Accepted roles: {', '.join(search.roles.accepted)}",
-            f"Excluded roles: {', '.join(search.roles.excluded)}",
-            f"Target seniority: {search.seniority.target}",
-            f"Accepted seniority: {', '.join(search.seniority.accepted)}",
-            f"Excluded seniority: {', '.join(search.seniority.excluded)}",
-            f"Accepted locations: {', '.join(search.locations.accepted)}",
-            f"Excluded locations: {', '.join(search.locations.excluded)}",
-            f"Preferred industries: {', '.join(search.industries.preferred)}",
-            f"Salary threshold: {search.salary}",
             f"Dealbreakers: {', '.join(search.dealbreakers)}",
             f"Candidate base location: {config.identity.location_base}",
             f"Candidate work modes: {', '.join(config.identity.work_modes)}",
         ]
     )
+    return "\n".join(lines)
 
 
 def _require_mapping(
@@ -324,6 +328,17 @@ def _require_string(raw: dict[str, Any], key: str, prefix: str = "") -> str:
     if not isinstance(value, str) or not value.strip():
         raise ProfileConfigError(f"{name} is required")
     return value.strip()
+
+
+def _optional_string(raw: dict[str, Any], key: str, prefix: str = "") -> str | None:
+    value = raw.get(key)
+    name = f"{prefix}.{key}" if prefix else key
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ProfileConfigError(f"{name} must be a string")
+    normalized = value.strip()
+    return normalized or None
 
 
 def _require_string_list(

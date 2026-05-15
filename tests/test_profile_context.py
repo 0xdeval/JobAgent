@@ -303,6 +303,56 @@ profile_sections:
     assert "Grew activation by 30%" in context.scoring_context
 
 
+def test_search_salary_is_optional_and_omitted_from_discovery_context_when_absent(
+    tmp_path,
+):
+    root = tmp_path / "knowledge"
+    profile_dir = root / "profile"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "profile-summary.md").write_text(
+        "Senior PM with fintech experience.", encoding="utf-8"
+    )
+    profile_yaml = root / "profile.yaml"
+    profile_yaml.write_text(
+        """
+identity:
+  full_name: Alex Candidate
+  preferred_name: Alex
+  email: alex@example.com
+  location:
+    base: Lisbon, Portugal
+    work_modes: [Remote]
+  links: []
+search:
+  roles:
+    primary: Product Manager
+    accepted: [Product Manager]
+    excluded: []
+  seniority:
+    target: Senior
+    accepted: [Senior]
+    excluded: []
+  locations:
+    accepted: [Remote]
+    excluded: []
+  industries:
+    preferred: [SaaS]
+  dealbreakers: []
+profile_sections:
+  summary: profile/profile-summary.md
+""",
+        encoding="utf-8",
+    )
+
+    config = load_profile_config(profile_yaml)
+    context = build_discovery_context(profile_yaml)
+    application_context = build_application_context(profile_yaml)
+
+    assert config.search.salary is None
+    assert "Salary threshold:" not in context.filter_context
+    assert "Alex Candidate" in application_context.identity_context
+
+
 def test_application_context_reads_only_allowlisted_sections(tmp_path):
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"

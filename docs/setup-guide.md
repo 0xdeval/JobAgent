@@ -95,7 +95,7 @@ Real `knowledge/profile.yaml` stays ignored by git. Commit only example files.
 The file has three top-level sections:
 
 - `identity` — name, preferred name, email, location, work modes, and links used in generated artifacts.
-- `search` — structured Discovery filters for roles, seniority, locations, industries, salary, and dealbreakers.
+- `search` — structured Discovery filters for roles, seniority, locations, industries, optional salary, and dealbreakers.
 - `profile_sections` — explicit links to the profile markdown files the system may use as evidence.
 
 Good structure looks like:
@@ -146,6 +146,8 @@ profile_sections:
 `knowledge/search-criteria.md` is deprecated for vacancy discovery and application generation. Put search controls in `knowledge/profile.yaml` under `search`.
 
 Current company sourcing still reads `knowledge/search-criteria.md` as a legacy input. Keep a short version of this file only if you run `job_hunting_source_companies`; otherwise `knowledge/profile.yaml` is the source of truth.
+
+`search.salary` is optional. If present, Discovery includes it as a salary threshold. If omitted, Discovery and application generation continue without a salary constraint.
 
 ### `knowledge/companies.csv`
 
