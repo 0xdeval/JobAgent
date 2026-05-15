@@ -13,7 +13,9 @@ from job_hunting.profile_context import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _valid_profile_yaml(*, profile_sections: str = "summary: profile/summary.md") -> str:
+def _valid_profile_yaml(
+    *, profile_sections: str = "work_experience: profile/work-experience.yaml"
+) -> str:
     return f"""
 identity:
   full_name: Alex Candidate
@@ -56,7 +58,35 @@ def test_loads_example_profile_yaml():
     assert config.identity.preferred_name == "Alex"
     assert config.identity.links[0].key == "linkedin"
     assert config.search.roles.primary == "Product Manager"
-    assert config.profile_sections["skills"] == Path("profile/skills.md")
+    assert config.profile_sections["skills"] == Path("profile/skills.yaml")
+    assert "summary" not in config.profile_sections
+
+
+def test_profile_sections_must_point_to_yaml_files(tmp_path):
+    profile_yaml = tmp_path / "profile.yaml"
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(
+            profile_sections="work_experience: profile/work-experience.md"
+        ),
+    )
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="profile_sections.work_experience must point to a .yaml file",
+    ):
+        load_profile_config(profile_yaml)
+
+
+def test_loads_example_profile_yaml_with_yaml_sections():
+    config = load_profile_config(PROJECT_ROOT / "examples/knowledge/profile.yaml")
+
+    assert config.identity.full_name == "Alex Candidate"
+    assert config.search.roles.primary == "Product Manager"
+    assert config.profile_sections["work_experience"] == Path(
+        "profile/work-experience.yaml"
+    )
+    assert "summary" not in config.profile_sections
 
 
 def test_builds_application_context_from_example_profile_yaml():
@@ -96,7 +126,7 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  unsupported: profile/unsupported.md
+  unsupported: profile/unsupported.yaml
 """,
         encoding="utf-8",
     )
@@ -212,7 +242,7 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  summary: profile/missing-summary.md
+  work_experience: profile/missing-work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -220,7 +250,8 @@ profile_sections:
     with pytest.raises(
         ProfileConfigError,
         match=(
-            "profile_sections.summary points to profile/missing-summary.md, "
+            "profile_sections.work_experience points to "
+            "profile/missing-work-experience.yaml, "
             "but the file does not exist"
         ),
     ):
@@ -231,10 +262,10 @@ def test_discovery_context_rejects_profile_without_scoring_sections(tmp_path):
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "projects.md").write_text("Side project details.", encoding="utf-8")
+    (profile_dir / "education.yaml").write_text("Education details.", encoding="utf-8")
     profile_yaml = root / "profile.yaml"
     profile_yaml.write_text(
-        _valid_profile_yaml(profile_sections="projects: profile/projects.md"),
+        _valid_profile_yaml(profile_sections="education: profile/education.yaml"),
         encoding="utf-8",
     )
 
@@ -249,13 +280,10 @@ def test_discovery_context_uses_search_and_system_owned_scoring_sections(tmp_pat
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
-        "Senior PM with fintech and AI experience.", encoding="utf-8"
-    )
-    (profile_dir / "skills.md").write_text(
+    (profile_dir / "skills.yaml").write_text(
         "- Product strategy\n- SQL\n", encoding="utf-8"
     )
-    (profile_dir / "work-experience.md").write_text(
+    (profile_dir / "work-experience.yaml").write_text(
         "## Acme -- Senior Product Manager\n\n- Grew activation by 30%.",
         encoding="utf-8",
     )
@@ -287,9 +315,8 @@ search:
   salary: "$120000+"
   dealbreakers: [Requires relocation outside Portugal]
 profile_sections:
-  summary: profile/profile-summary.md
-  skills: profile/skills.md
-  work_experience: profile/work-experience.md
+  skills: profile/skills.yaml
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -298,7 +325,6 @@ profile_sections:
 
     assert "Product Manager" in context.filter_context
     assert "US-only remote" in context.filter_context
-    assert "Senior PM with fintech" in context.scoring_context
     assert "Product strategy" in context.scoring_context
     assert "Grew activation by 30%" in context.scoring_context
 
@@ -309,7 +335,7 @@ def test_search_salary_is_optional_and_omitted_from_discovery_context_when_absen
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
+    (profile_dir / "work-experience.yaml").write_text(
         "Senior PM with fintech experience.", encoding="utf-8"
     )
     profile_yaml = root / "profile.yaml"
@@ -339,7 +365,7 @@ search:
     preferred: [SaaS]
   dealbreakers: []
 profile_sections:
-  summary: profile/profile-summary.md
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -357,10 +383,10 @@ def test_application_context_reads_only_allowlisted_sections(tmp_path):
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
-        "Approved summary.", encoding="utf-8"
+    (profile_dir / "work-experience.yaml").write_text(
+        "Approved work evidence.", encoding="utf-8"
     )
-    (profile_dir / "hidden.md").write_text("Hidden fact.", encoding="utf-8")
+    (profile_dir / "hidden.yaml").write_text("Hidden fact.", encoding="utf-8")
     profile_yaml = root / "profile.yaml"
     profile_yaml.write_text(
         """
@@ -389,7 +415,7 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  summary: profile/profile-summary.md
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -397,5 +423,5 @@ profile_sections:
     context = build_application_context(profile_yaml)
 
     assert "Alex Candidate" in context.identity_context
-    assert "Approved summary." in context.profile_sections_context
+    assert "Approved work evidence." in context.profile_sections_context
     assert "Hidden fact." not in context.profile_sections_context
