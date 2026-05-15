@@ -7,6 +7,7 @@ from job_hunting.profile_context import (
     build_application_context,
     build_discovery_context,
     load_profile_config,
+    load_profile_sections,
 )
 
 
@@ -51,6 +52,12 @@ def _write_valid_profile_yaml(path: Path, content: str | None = None) -> Path:
     return path
 
 
+def _write_profile_section(root: Path, relative_path: str, content: str) -> None:
+    path = root / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
 def test_loads_example_profile_yaml():
     config = load_profile_config(PROJECT_ROOT / "examples/knowledge/profile.yaml")
 
@@ -87,6 +94,257 @@ def test_loads_example_profile_yaml_with_yaml_sections():
         "profile/work-experience.yaml"
     )
     assert "summary" not in config.profile_sections
+
+
+def test_load_profile_sections_parses_yaml_sections(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    industry: SaaS
+    company_summary: Product analytics platform
+    show_on_cv: false
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+        links:
+          - label: Case study
+            url: https://example.com/case-study
+""",
+    )
+    _write_profile_section(
+        root,
+        "profile/projects.yaml",
+        """
+projects:
+  - id: launch-kit
+    name: Launch Kit
+    title: Founder
+    period: {start: 2023-02, end: 2023-11}
+    description: Product launch automation.
+    links:
+      - label: Demo
+        url: https://example.com/demo
+    tech_stack: [Python, SQL]
+""",
+    )
+    _write_profile_section(
+        root,
+        "profile/skills.yaml",
+        """
+skill_groups:
+  - name: Product
+    show_on_cv: false
+    skills: [Discovery, Roadmapping]
+""",
+    )
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(
+            profile_sections="""
+  work_experience: profile/work-experience.yaml
+  projects: profile/projects.yaml
+  skills: profile/skills.yaml
+"""
+        ),
+    )
+
+    sections = load_profile_sections(load_profile_config(profile_yaml))
+
+    role = sections.work_experience[0]
+    assert role.company == "Acme"
+    assert role.period.start == "2024-01"
+    assert role.period.end == "present"
+    assert role.show_on_cv is False
+    assert role.achievements[0].links[0].url == "https://example.com/case-study"
+
+    project = sections.projects[0]
+    assert project.name == "Launch Kit"
+    assert project.period is not None
+    assert project.period.end == "2023-11"
+    assert project.show_on_cv is True
+    assert project.links[0].label == "Demo"
+    assert project.tech_stack == ("Python", "SQL")
+
+    skill_group = sections.skills[0]
+    assert skill_group.name == "Product"
+    assert skill_group.show_on_cv is False
+    assert skill_group.skills == ("Discovery", "Roadmapping")
+
+
+@pytest.mark.parametrize(
+    ("period", "expected_message"),
+    [
+        ("{start: 2026-00, end: present}", "period.start must use YYYY-MM"),
+        ("{start: 2026-13, end: present}", "period.start must use YYYY-MM"),
+        ("{start: present, end: present}", "period.start must use YYYY-MM"),
+    ],
+)
+def test_load_profile_sections_rejects_invalid_period_start_values(
+    tmp_path, period, expected_message
+):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        f"""
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {period}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+    )
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(ProfileConfigError, match=expected_message):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_load_profile_sections_allows_present_period_end(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2026-12, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+    )
+    _write_valid_profile_yaml(profile_yaml)
+
+    sections = load_profile_sections(load_profile_config(profile_yaml))
+
+    assert sections.work_experience[0].period.start == "2026-12"
+    assert sections.work_experience[0].period.end == "present"
+
+
+@pytest.mark.parametrize(
+    ("section_content", "expected_message"),
+    [
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    show_on_cv: "false"
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+            "work_experience.roles\\[0\\].show_on_cv must be a boolean",
+        ),
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: 2026-99}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+            "work_experience.roles\\[0\\].period.end must use YYYY-MM",
+        ),
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+        links:
+          - label: Case study
+            url: http://example.com/case-study
+""",
+            "work_experience.roles\\[0\\].achievements\\[0\\].links\\[0\\].url "
+            "must be an https URL",
+        ),
+        (
+            "roles: []\n",
+            "work_experience.roles must be a non-empty list",
+        ),
+    ],
+)
+def test_load_profile_sections_rejects_invalid_work_experience(
+    tmp_path, section_content, expected_message
+):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(root, "profile/work-experience.yaml", section_content)
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(ProfileConfigError, match=expected_message):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_load_profile_sections_rejects_non_mapping_section_yaml(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(root, "profile/work-experience.yaml", "- not a mapping\n")
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="profile_sections.work_experience must be a YAML mapping",
+    ):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_optional_period_present_but_malformed_reports_mapping_error(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/projects.yaml",
+        """
+projects:
+  - id: launch-kit
+    name: Launch Kit
+    period: 2024-01
+    description: Product launch automation.
+""",
+    )
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(profile_sections="projects: profile/projects.yaml"),
+    )
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="projects.projects\\[0\\].period must be a mapping",
+    ):
+        load_profile_sections(load_profile_config(profile_yaml))
 
 
 def test_builds_application_context_from_example_profile_yaml():

@@ -694,10 +694,12 @@ def _require_list(value: Any, name: str) -> list[Any]:
 
 
 def _parse_period(raw: Any, prefix: str, *, required: bool) -> PeriodConfig | None:
-    if raw is None and not required:
-        return None
+    if raw is None:
+        if not required:
+            return None
+        raise ProfileConfigError(f"{prefix}.period is required")
     if not isinstance(raw, dict):
-        raise ProfileConfigError(f"{prefix}.period is required and must be a mapping")
+        raise ProfileConfigError(f"{prefix}.period must be a mapping")
     start = _require_string(raw, "start", prefix=f"{prefix}.period")
     end = _require_string(raw, "end", prefix=f"{prefix}.period")
     _validate_period_value(start, f"{prefix}.period.start", allow_present=False)
@@ -708,7 +710,7 @@ def _parse_period(raw: Any, prefix: str, *, required: bool) -> PeriodConfig | No
 def _validate_period_value(value: str, name: str, *, allow_present: bool) -> None:
     if allow_present and value == "present":
         return
-    if not re.fullmatch(r"\d{4}-\d{2}", value):
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
         raise ProfileConfigError(f"{name} must use YYYY-MM")
 
 
