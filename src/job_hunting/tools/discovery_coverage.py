@@ -29,10 +29,35 @@ class DiscoveryCoverageStore:
         self.path = discovery_coverage_file(run_date)
 
     def initialize_from_companies(
-        self, companies_path: Path = Path("knowledge/companies.csv")
+        self,
+        companies_path: Path = Path("knowledge/companies.csv"),
+        companies: list[tuple[str, str]] | None = None,
     ) -> Path:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         rows = []
+        source_companies = (
+            companies if companies is not None else self._load_companies(companies_path)
+        )
+        for company, career_page in source_companies:
+            if company.strip() or career_page.strip():
+                rows.append(
+                    {
+                        "company": company.strip(),
+                        "career_page": career_page.strip(),
+                        "status": "not_attempted",
+                        "jobs_found": "0",
+                        "matched_jobs": "0",
+                        "notes": "",
+                        "scraped_at": "",
+                    }
+                )
+
+        self._write_rows(rows)
+        return self.path
+
+    @staticmethod
+    def _load_companies(companies_path: Path) -> list[tuple[str, str]]:
+        rows: list[tuple[str, str]] = []
         if companies_path.exists():
             with companies_path.open(newline="", encoding="utf-8-sig") as file:
                 reader = csv.DictReader(file)
@@ -40,20 +65,8 @@ class DiscoveryCoverageStore:
                     company = row.get("Company") or row.get("company") or ""
                     career_page = row.get("Career page") or row.get("career_page") or ""
                     if company.strip() or career_page.strip():
-                        rows.append(
-                            {
-                                "company": company.strip(),
-                                "career_page": career_page.strip(),
-                                "status": "not_attempted",
-                                "jobs_found": "0",
-                                "matched_jobs": "0",
-                                "notes": "",
-                                "scraped_at": "",
-                            }
-                        )
-
-        self._write_rows(rows)
-        return self.path
+                        rows.append((company.strip(), career_page.strip()))
+        return rows
 
     def record(
         self,

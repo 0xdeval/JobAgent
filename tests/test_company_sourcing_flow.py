@@ -16,10 +16,10 @@ def test_run_company_sourcing_crew_and_notify(monkeypatch, tmp_path):
     def _write_candidates(inputs):
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
-            "company,career_page,website,source,industry,match_score,match_reason,status,discovered_at\n"
-            "Acme,https://acme.com/careers,https://acme.com,public_search,FinTech,85,Strong fit,pending_review,2026-05-11T09:00:00Z\n"
-            "Beta,https://beta.com/careers,https://beta.com,public_search,SaaS,70,Weak fit,skipped,2026-05-11T09:00:00Z\n"
-            "Gamma,https://gamma.com/jobs,https://gamma.com,public_search,AI,92,Excellent fit,pending_review,2026-05-11T09:00:00Z\n",
+            "candidate_id,company,career_page,website,description,industry,source,match_score,match_reason,status,discovered_at,reviewed_at\n"
+            "acme-id,Acme,https://acme.com/careers,https://acme.com,Builds tools for operators.,FinTech,public_search,85,Strong fit,pending_review,2026-05-11T09:00:00Z,\n"
+            "beta-id,Beta,https://beta.com/careers,https://beta.com,Builds beta tools.,SaaS,public_search,70,Weak fit,skipped,2026-05-11T09:00:00Z,\n"
+            "gamma-id,Gamma,https://gamma.com/jobs,https://gamma.com,Builds AI tools.,AI,public_search,92,Excellent fit,pending_review,2026-05-11T09:00:00Z,\n",
             encoding="utf-8",
         )
 
@@ -41,14 +41,48 @@ def test_run_company_sourcing_crew_and_notify(monkeypatch, tmp_path):
         "run_date": "2026-05-11",
         "candidate_count": 2,
         "path": output,
+        "candidates": [
+            {
+                "candidate_id": "acme-id",
+                "company": "Acme",
+                "career_page": "https://acme.com/careers",
+                "website": "https://acme.com",
+                "description": "Builds tools for operators.",
+                "industry": "FinTech",
+                "source": "public_search",
+                "match_score": "85",
+                "match_reason": "Strong fit",
+                "status": "pending_review",
+                "discovered_at": "2026-05-11T09:00:00Z",
+                "reviewed_at": "",
+            },
+            {
+                "candidate_id": "gamma-id",
+                "company": "Gamma",
+                "career_page": "https://gamma.com/jobs",
+                "website": "https://gamma.com",
+                "description": "Builds AI tools.",
+                "industry": "AI",
+                "source": "public_search",
+                "match_score": "92",
+                "match_reason": "Excellent fit",
+                "status": "pending_review",
+                "discovered_at": "2026-05-11T09:00:00Z",
+                "reviewed_at": "",
+            },
+        ],
     }
     kickoff.assert_called_once_with(inputs={"today": "2026-05-11"})
 
     flow.send_review_notification(result)
-    notifier.send_company_candidates_review.assert_called_once_with(
+    assert notifier.send_company_candidate_review.call_count == 2
+    notifier.send_company_candidate_review.assert_any_call(
         run_date="2026-05-11",
-        candidate_count=2,
-        path=output,
+        candidate=result["candidates"][0],
+    )
+    notifier.send_company_candidate_review.assert_any_call(
+        run_date="2026-05-11",
+        candidate=result["candidates"][1],
     )
 
 
@@ -61,8 +95,8 @@ def test_run_company_sourcing_crew_does_not_notify_for_old_pending_rows(
     output = Path("data/2026-05-11/company_candidates.csv")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        "company,career_page,website,source,industry,match_score,match_reason,status,discovered_at\n"
-        "Acme,https://acme.com/careers,https://acme.com,public_search,FinTech,85,Strong fit,pending_review,2026-05-11T09:00:00Z\n",
+        "candidate_id,company,career_page,website,description,industry,source,match_score,match_reason,status,discovered_at,reviewed_at\n"
+        "acme-id,Acme,https://acme.com/careers,https://acme.com,Builds tools for operators.,FinTech,public_search,85,Strong fit,pending_review,2026-05-11T09:00:00Z,\n",
         encoding="utf-8",
     )
 
@@ -84,10 +118,11 @@ def test_run_company_sourcing_crew_does_not_notify_for_old_pending_rows(
         "run_date": "2026-05-11",
         "candidate_count": 0,
         "path": output,
+        "candidates": [],
     }
 
     flow.send_review_notification(result)
-    notifier.send_company_candidates_review.assert_not_called()
+    notifier.send_company_candidate_review.assert_not_called()
 
 
 def test_run_company_sourcing_crew_accepts_fully_deduped_empty_output(
@@ -135,6 +170,7 @@ def test_run_company_sourcing_crew_accepts_fully_deduped_empty_output(
         "run_date": "2026-05-11",
         "candidate_count": 0,
         "path": Path("data/2026-05-11/company_candidates.csv"),
+        "candidates": [],
     }
     assert Path("data/2026-05-11/company_candidates.csv").exists()
 
@@ -150,12 +186,13 @@ def test_send_review_notification_skips_when_no_pending(monkeypatch, capsys):
             "run_date": "2026-05-11",
             "candidate_count": 0,
             "path": Path("data/2026-05-11/company_candidates.csv"),
+            "candidates": [],
         }
     )
 
     captured = capsys.readouterr()
     assert "No company candidates pending review." in captured.out
-    notifier.send_company_candidates_review.assert_not_called()
+    notifier.send_company_candidate_review.assert_not_called()
 
 
 def test_run_company_sourcing_crew_raises_when_output_missing(monkeypatch, tmp_path):
@@ -176,7 +213,3 @@ def test_run_company_sourcing_crew_raises_when_output_missing(monkeypatch, tmp_p
 
     kickoff.assert_called_once_with(inputs={"today": "2026-05-11"})
 
-
-def test_count_pending_candidates_returns_zero_for_missing_file(tmp_path):
-    missing = tmp_path / "missing.csv"
-    assert CompanySourcingFlow._count_pending_candidates(missing) == 0

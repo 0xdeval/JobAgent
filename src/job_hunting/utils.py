@@ -22,6 +22,10 @@ def company_candidates_file(run_date: str) -> Path:
     return Path(f"data/{run_date}/company_candidates.csv")
 
 
+def approved_company_candidates_file() -> Path:
+    return Path("knowledge/approved-company-candidates.csv")
+
+
 def discovery_coverage_file(run_date: str) -> Path:
     return Path(f"data/{run_date}/discovery_coverage.csv")
 

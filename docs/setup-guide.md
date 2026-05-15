@@ -68,66 +68,86 @@ What each value means:
 
 ## 3. Fill Files Before Starting
 
-The required setup files are:
+The common setup files are:
 
 ```text
 knowledge/
 ├── companies.csv
 ├── company-source-queries.yaml
+├── profile.yaml
 ├── search-criteria.md
 └── profile/
-    ├── general-info.md
     ├── profile-summary.md
     ├── work-experience.md
     ├── personal-projects.md
+    ├── education.md
+    ├── skills.md
     ├── values-and-interests.md
-    └── public-performance.md
+    └── public-speaking.md
 ```
 
-### `knowledge/search-criteria.md`
+### `knowledge/profile.yaml`
 
-This file tells the agents what kind of jobs should be considered suitable.
+This private file is the structured control surface for identity, Discovery search filters, and allowlisted profile evidence files. Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate.
 
-Fill it with:
+Real `knowledge/profile.yaml` stays ignored by git. Commit only example files.
 
-- Target role names.
-- Acceptable seniority levels.
-- Preferred locations and remote rules.
-- Preferred industries.
-- Hard exclusions.
-- Salary, timezone, language, or visa constraints if relevant.
+The file has three top-level sections:
 
-Good content looks like:
+- `identity` — name, preferred name, email, location, work modes, and links used in generated artifacts.
+- `search` — structured Discovery filters for roles, seniority, locations, industries, optional salary, and dealbreakers.
+- `profile_sections` — explicit links to the profile markdown files the system may use as evidence.
 
-```markdown
-## Role
+Good structure looks like:
 
-Primary target: Senior Product Manager.
+```yaml
+identity:
+  full_name: Ada Lovelace
+  preferred_name: Ada
+  email: ada@example.com
+  location:
+    base: London, UK
+    work_modes: [Remote Europe]
+  links:
+    - key: linkedin
+      label: LinkedIn
+      url: https://www.linkedin.com/in/ada-lovelace/
+      display: ada-lovelace
+      show_on_cv: true
 
-Acceptable variations:
-- Product Manager
-- AI Product Manager
-- Crypto Product Manager
-- Lead Product Manager
+search:
+  roles:
+    primary: Product Manager
+    accepted: [Product Manager, Senior Product Manager]
+    excluded: []
+  seniority:
+    target: Senior
+    accepted: [Senior, Lead]
+    excluded: [Intern]
+  locations:
+    accepted: [Remote Europe, Portugal]
+    excluded: [US-only]
+  industries:
+    preferred: [FinTech, AI, B2B SaaS]
+  salary: "$120000+"
+  dealbreakers:
+    - Requires relocation
 
-## Location
-
-Prefer remote Europe, EMEA, global remote, or Portugal.
-Exclude US-only and Canada-only remote roles.
-
-## Industries
-
-Priority:
-1. FinTech
-2. AI
-3. Crypto/Web3
-4. B2B SaaS
-
-## Exclusions
-
-- Exclude hybrid roles unless they are in my city.
-- Exclude roles that require relocation.
+profile_sections:
+  summary: profile/profile-summary.md
+  work_experience: profile/work-experience.md
+  projects: profile/personal-projects.md
+  education: profile/education.md
+  skills: profile/skills.md
+  public_speaking: profile/public-speaking.md
+  values: profile/values-and-interests.md
 ```
+
+`knowledge/search-criteria.md` is deprecated for vacancy discovery and application generation. Put search controls in `knowledge/profile.yaml` under `search`.
+
+Current company sourcing still reads `knowledge/search-criteria.md` as a legacy input. Keep a short version of this file only if you run `job_hunting_source_companies`; otherwise `knowledge/profile.yaml` is the source of truth.
+
+`search.salary` is optional. If present, Discovery includes it as a salary threshold. If omitted, Discovery and application generation continue without a salary constraint.
 
 ### `knowledge/companies.csv`
 
@@ -151,13 +171,13 @@ Good career page URLs often look like:
 - `https://jobs.personio.com/company`
 - `https://company.com/careers`
 
-Do not paste every scraped company here automatically. First review `data/<YYYY-MM-DD>/company_candidates.csv`, then copy only useful companies into `knowledge/companies.csv`.
+Company sourcing sends each new candidate to Telegram for review. Click `Approve` to append the company to `knowledge/approved-company-candidates.csv`, or `Decline` to keep it out of discovery. The rich generated file under `data/<date>/company_candidates.csv` remains the audit log for sourced candidates and review decisions.
 
 ### `knowledge/company-source-queries.yaml`
 
 This file controls how the company sourcing crew searches for new companies.
 
-It does not replace your profile or search criteria. It only defines search templates and ATS domains.
+It does not replace your profile. It only defines search templates and ATS domains.
 
 Useful structure:
 
@@ -185,7 +205,7 @@ Supported template variables:
 - `{industry}`
 - `{domain}`
 
-The crew reads `search-criteria.md` and profile files, decides which roles/seniorities/industries to use, then fills these templates.
+The crew uses the legacy `knowledge/search-criteria.md` content plus this query config to decide which roles, seniorities, and industries to put into these templates. Vacancy discovery does not use this file; it uses `knowledge/profile.yaml.search`.
 
 ## 4. Fill Profile Files
 
@@ -199,12 +219,13 @@ Use real information. The agents use this content to score roles, evaluate compa
 
 | File | What to fill |
 | --- | --- |
-| `general-info.md` | Name, location, email, languages, education, certificates, links. |
 | `profile-summary.md` | Short career summary: who you are, what you specialize in, strongest achievements. |
 | `work-experience.md` | Jobs, dates, company context, responsibilities, measurable results. |
 | `personal-projects.md` | Side projects, open-source work, links, tech stack, outcomes. |
+| `education.md` | Education, certifications, and formal training. |
+| `skills.md` | Skills, tools, domains, and working strengths. |
 | `values-and-interests.md` | Topics, industries, values, work style, company traits you care about. |
-| `public-performance.md` | Talks, publications, community activity, public proof. |
+| `public-speaking.md` | Talks, publications, community activity, public proof. |
 
 Practical tips:
 
@@ -223,6 +244,14 @@ job_hunting_bot
 
 Use it when you want Telegram approval cards, status updates, and review notifications. Keep it running in one terminal.
 
+Prepare one vacancy URL directly from Telegram:
+
+```text
+/prep_vacancy
+```
+
+After the bot asks for a URL, send the vacancy URL in the same chat. The bot extracts the vacancy, creates a local vacancy/score record, runs application generation, sends progress updates, and returns the generated artifacts to that chat.
+
 Run vacancy discovery:
 
 ```bash
@@ -237,6 +266,12 @@ Output:
 - `data/<YYYY-MM-DD>/scores/*.json`
 - `data/<YYYY-MM-DD>/applications/<vacancy_id>/` after approval
 
+Application artifact filenames use the company and role in PascalCase:
+
+- `Kraken-SeniorProductManager-CV.pdf`
+- `Kraken-SeniorProductManager-QA.md`
+- `Kraken-SeniorProductManager-CoverLetter.pdf`
+
 Run company sourcing:
 
 ```bash
@@ -250,7 +285,7 @@ Output:
 - `data/<YYYY-MM-DD>/company_candidates.csv`
 - Telegram notification when new candidates need review
 
-Important: approved company candidates are not automatically added to `knowledge/companies.csv`. Review them, then copy useful companies manually.
+Company sourcing sends each new candidate to Telegram for review. Click `Approve` to append the company to `knowledge/approved-company-candidates.csv`, or `Decline` to keep it out of discovery. The rich generated file under `data/<date>/company_candidates.csv` remains the audit log for sourced candidates and review decisions.
 
 Run advisor UI:
 
@@ -265,8 +300,8 @@ Use it when you want a local Chainlit chat interface for career/application ques
 First-time setup:
 
 1. Fill `.env`.
-2. Fill `knowledge/profile/*`.
-3. Fill `knowledge/search-criteria.md`.
+2. Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and fill it.
+3. Fill the markdown files referenced by `knowledge/profile.yaml.profile_sections`.
 4. Add initial companies to `knowledge/companies.csv`.
 5. Run `job_hunting_bot`.
 6. Run `job_hunting_discover`.
@@ -274,9 +309,9 @@ First-time setup:
 Ongoing usage:
 
 - Run `job_hunting_discover` daily or every few hours.
-- Run `job_hunting_source_companies` when you want more company sources.
-- Review `data/<YYYY-MM-DD>/company_candidates.csv`.
-- Copy approved companies into `knowledge/companies.csv`.
+- Run `job_hunting_source_companies` when you want more company sources; keep `knowledge/search-criteria.md` filled until company sourcing is migrated to `profile.yaml`.
+- Review `data/<YYYY-MM-DD>/company_candidates.csv` as the audit log.
+- Approve or decline candidates directly in Telegram (`Approve` appends to `knowledge/approved-company-candidates.csv`).
 - Run `job_hunting_discover` again to search vacancies from the expanded company list.
 
 ## 7. Troubleshooting
@@ -302,7 +337,7 @@ uv sync --no-install-package onnxruntime
 If nothing is found:
 
 - Check that `knowledge/companies.csv` has valid career page URLs.
-- Check that `knowledge/search-criteria.md` is not too restrictive.
+- Check that `knowledge/profile.yaml.search` is not too restrictive.
 - Check that `.env` contains valid LLM and Telegram settings.
 
 If company sourcing finds irrelevant companies:

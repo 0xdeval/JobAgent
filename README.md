@@ -70,13 +70,15 @@ Set values in `.env`:
 - `TELEGRAM_ALLOWED_USERS` (optional, comma-separated)
 - `MIN_SCORE` (default: `70`)
 
-### 3. Add target companies
+### 3. Add profile and target companies
 
-Create a `knowledge` folder in the project root and fill all necessary files. Examples are in [`examples/knowledge/`](examples/knowledge/); the guide for files are in [`docs/setup-guide.md`](docs/setup-guide.md)
+Create a `knowledge` folder in the project root and fill all necessary files. Examples are in [`examples/knowledge/`](examples/knowledge/); the guide for files is in [`docs/setup-guide.md`](docs/setup-guide.md).
+
+Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate. This private YAML file controls identity, Discovery search filters, and the allowlisted profile evidence files used for generated artifacts. The old `knowledge/search-criteria.md` file is deprecated by `knowledge/profile.yaml` under the `search` section.
 
 Edit `knowledge/companies.csv` with company name + career page URL.
 
-Optional: edit `knowledge/company-source-queries.yaml` to tune public search queries used for finding new company career pages. This does not modify `knowledge/companies.csv`; sourced candidates are written separately for review.
+Optional: edit `knowledge/company-source-queries.yaml` to tune public search queries used for finding new company career pages. This does not modify `knowledge/companies.csv`; sourced candidates are written separately for review. Current company sourcing still reads `knowledge/search-criteria.md` as a legacy input, so keep that file only if you run `job_hunting_source_companies`.
 
 ### 4. Run the system
 
@@ -85,6 +87,14 @@ Start the Telegram bot (terminal 1):
 ```bash
 job_hunting_bot
 ```
+
+Prepare one vacancy URL directly from Telegram:
+
+```text
+/prep_vacancy
+```
+
+Then send the vacancy URL to the bot. It extracts the vacancy, generates the application artifacts, and sends them back to the same chat.
 
 Run discovery (terminal 2, cron-friendly entrypoint):
 
@@ -112,7 +122,9 @@ job_hunting_advisor
 4. Review generated artifacts in `data/<date>/applications/<vacancy_id>/`.
 5. Mark status back in Telegram (`applied`, `not_applied`, etc.).
 
-Run company sourcing when you want to expand the company list. It searches using `knowledge/company-source-queries.yaml`, deduplicates against `knowledge/companies.csv` and prior candidates, writes review candidates to `data/<date>/company_candidates.csv`, and sends a Telegram notification when new candidates need review.
+Generated application files use company and position names, for example `Kraken-SeniorProductManager-CV.pdf`, `Kraken-SeniorProductManager-QA.md`, and `Kraken-SeniorProductManager-CoverLetter.pdf`.
+
+Run company sourcing when you want to expand the company list. It searches using `knowledge/search-criteria.md` and `knowledge/company-source-queries.yaml`, deduplicates against `knowledge/companies.csv`, `knowledge/approved-company-candidates.csv`, and prior generated candidates, writes rich review candidates to `data/<date>/company_candidates.csv`, and sends each new pending candidate to Telegram with `Approve`/`Decline` buttons. Approved candidates are appended to `knowledge/approved-company-candidates.csv` for future discovery runs.
 
 ## Data Layout
 
@@ -123,6 +135,9 @@ Generated files are stored under:
 - `data/<YYYY-MM-DD>/applications/<vacancy_id>/...`
 - `data/<YYYY-MM-DD>/company_candidates.csv`
 - `data/<YYYY-MM-DD>/discovery_coverage.csv`
+- `knowledge/profile.yaml`
+- `knowledge/search-criteria.md` (legacy; only needed for `job_hunting_source_companies`)
+- `knowledge/approved-company-candidates.csv`
 
 ## Main Commands
 
@@ -133,8 +148,8 @@ source .venv/bin/activate
 ```
 
 - `job_hunting_bot` — Starts the Telegram bot. Output: waits for Telegram actions and handles approvals/status updates.
-- `job_hunting_discover` — Reads `knowledge/companies.csv`, discovers vacancies, scores them, and sends suitable roles to Telegram. Output: `data/<YYYY-MM-DD>/discovery_coverage.csv`, `data/<YYYY-MM-DD>/vacancies/`, `data/<YYYY-MM-DD>/scores/`, and application files after approval.
-- `job_hunting_source_companies` — Searches for new company career-page candidates. Output: `data/<YYYY-MM-DD>/company_candidates.csv` and a Telegram review notification when new candidates are found.
+- `job_hunting_discover` — Reads `knowledge/profile.yaml` and `knowledge/companies.csv`, discovers vacancies, scores them, and sends suitable roles to Telegram. Output: `data/<YYYY-MM-DD>/discovery_coverage.csv`, `data/<YYYY-MM-DD>/vacancies/`, `data/<YYYY-MM-DD>/scores/`, and application files after approval.
+- `job_hunting_source_companies` — Searches for new company career-page candidates using the legacy `knowledge/search-criteria.md` input plus `knowledge/company-source-queries.yaml`. Output: `data/<YYYY-MM-DD>/company_candidates.csv` and a Telegram review notification when new candidates are found.
 - `job_hunting_advisor` — Starts the Chainlit advisor UI. Output: local web chat for career/application questions.
 
 Without activating `.venv`, prefix commands with `uv run`, for example:
