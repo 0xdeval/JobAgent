@@ -197,3 +197,103 @@ def test_cv_node_renderer_uses_profile_yaml_identity_and_sections(tmp_path):
     assert "ETHCC" not in rendered
     assert "DappCon" not in rendered
     assert "Data Science and analyst experience" not in rendered
+
+
+def test_cv_node_renderer_formats_public_speaking_markdown_as_cv_bullets(tmp_path):
+    template_path = Path("personalized-outreach/templates/cv-template.md").resolve()
+    script_path = Path("personalized-outreach/scripts/fill-template.js").resolve()
+    tailored_path = tmp_path / "tailored.json"
+    output_path = tmp_path / "cv.tex"
+    profile_dir = tmp_path / "profile"
+    normalized_profile_path = tmp_path / "normalized-profile.json"
+    profile_dir.mkdir()
+
+    tailored_path.write_text(
+        json.dumps(
+            {
+                "summary": "Product leader for protocol economics.",
+                "workExperienceIds": ["protocol-labs"],
+                "workExperienceDescriptions": {
+                    "protocol-labs": ["Launched node economics programs."]
+                },
+                "projectIds": [],
+                "projectDescriptions": {},
+                "skills": "Product strategy, Web3",
+            }
+        ),
+        encoding="utf-8",
+    )
+    normalized_profile_path.write_text(
+        json.dumps(
+            {
+                "identity": {
+                    "fullName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "location": "London, UK",
+                    "links": [],
+                },
+                "sections": {
+                    "public_speaking": """# Public Performance
+
+## Conferences & Talks
+
+### Speaker at EthCC
+
+**Topic:** Scaling DeFi and Privacy Infrastructure.
+
+### Speaker at DappCon
+
+**Topic:** Web3 Growth and Protocol Adoption.
+
+### Other Speaking Engagements
+
+- **ETH Dam**
+- **ETH Belgrade**
+- **Gnosis meetup**
+
+---
+
+## Publications / Articles
+
+- **White Paper: Blockchain privacy and self-regulatory compliance: methods and applications** — Focuses on private payment solutions and zk-based compliance.
+""",
+                },
+                "workExperience": [
+                    {
+                        "id": "protocol-labs",
+                        "company": "Protocol Labs",
+                        "position": "Product Lead",
+                        "location": "Remote",
+                        "period": "Jan 2024 -- Present",
+                        "companyDescription": "Protocol infrastructure company",
+                        "achievements": ["Designed token economics workflows."],
+                    }
+                ],
+                "projects": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "node",
+            str(script_path),
+            str(template_path),
+            str(tailored_path),
+            str(output_path),
+            str(profile_dir),
+            str(normalized_profile_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Speaker at EthCC --- Scaling DeFi and Privacy Infrastructure." in rendered
+    assert "Speaker at DappCon --- Web3 Growth and Protocol Adoption." in rendered
+    assert "ETH Dam" in rendered
+    assert "White Paper: Blockchain privacy" in rendered
+    assert "\\resumeItem{\\textbf{Topic:}" not in rendered
+    assert "\\resumeItem{---}" not in rendered

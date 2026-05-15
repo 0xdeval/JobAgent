@@ -322,16 +322,78 @@ function formatLegacyContactLine(identity) {
   return parts.join(" $|$ ");
 }
 
-function markdownSectionToLatex(title, content) {
-  const lines = String(content || "")
+function isMarkdownSeparator(line) {
+  return /^[-*_]{3,}$/.test(line.trim());
+}
+
+function isPublicSpeakingCategoryHeading(text) {
+  return /^(conferences|talks|publications|articles|community|other speaking)/i.test(
+    text.trim()
+  );
+}
+
+function stripTopicLabel(line) {
+  return line
+    .replace(/^\*\*Topic:\*\*\s*/i, "")
+    .replace(/^\*\*Topic\*\*:\s*/i, "")
+    .replace(/^Topic:\s*/i, "");
+}
+
+function publicSpeakingMarkdownToItems(content) {
+  const items = [];
+  let pendingHeading = "";
+
+  String(content || "")
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !line.startsWith("#"));
+    .forEach((line) => {
+      if (!line || isMarkdownSeparator(line)) return;
 
-  const items = lines
-    .map((line) => line.replace(/^[-*]\s+/, ""))
-    .filter(Boolean)
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const heading = headingMatch[2].trim();
+        pendingHeading =
+          level >= 3 && !isPublicSpeakingCategoryHeading(heading) ? heading : "";
+        return;
+      }
+
+      const unbulleted = line.replace(/^[-*]\s+/, "").trim();
+      if (!unbulleted || isMarkdownSeparator(unbulleted)) return;
+
+      const topic = stripTopicLabel(unbulleted).trim();
+      if (topic !== unbulleted) {
+        if (pendingHeading) {
+          items.push(`${pendingHeading} — ${topic}`);
+        } else {
+          items.push(topic);
+        }
+        pendingHeading = "";
+        return;
+      }
+
+      pendingHeading = "";
+      items.push(unbulleted);
+    });
+
+  return items;
+}
+
+function markdownSectionToLatex(title, content) {
+  const sourceItems =
+    title.toLowerCase() === "public speaking"
+      ? publicSpeakingMarkdownToItems(content)
+      : String(content || "")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .filter((line) => !line.startsWith("#"))
+          .filter((line) => !isMarkdownSeparator(line))
+          .map((line) => line.replace(/^[-*]\s+/, ""))
+          .filter(Boolean)
+          .filter((line) => !isMarkdownSeparator(line));
+
+  const items = sourceItems
     .map((line) => `\\resumeItem{${boldMetrics(escapeLatex(line))}}`);
 
   if (items.length === 0) return "";
