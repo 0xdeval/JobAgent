@@ -59,10 +59,12 @@ class CVGeneratorTool(BaseTool):
                 str(output_path),
                 str(PROFILE_DIR),
             ]
-            normalized_profile_path = _create_normalized_profile_json()
-            if normalized_profile_path is not None:
-                temp_paths.append(Path(normalized_profile_path))
-                command.append(normalized_profile_path)
+            try:
+                normalized_profile_path = _create_normalized_profile_json()
+            except (OSError, ProfileConfigError) as exc:
+                return f"Error loading profile YAML: {exc}"
+            temp_paths.append(Path(normalized_profile_path))
+            command.append(normalized_profile_path)
 
             result = subprocess.run(
                 command,
@@ -111,18 +113,17 @@ class CVGeneratorTool(BaseTool):
                 temp_path.unlink(missing_ok=True)
 
 
-def _create_normalized_profile_json() -> str | None:
-    try:
-        profile = load_profile_config(PROFILE_CONFIG_PATH)
-        sections = load_profile_sections(profile)
-    except (OSError, ProfileConfigError):
-        return None
+def _create_normalized_profile_json() -> str:
+    profile = load_profile_config(PROFILE_CONFIG_PATH)
+    sections = load_profile_sections(profile)
 
     normalized_profile = {
         "identity": {
             "fullName": profile.identity.full_name,
             "preferredName": profile.identity.preferred_name,
             "email": profile.identity.email,
+            "summary": profile.identity.summary,
+            "languages": list(profile.identity.languages),
             "location": profile.identity.location_base,
             "workModes": list(profile.identity.work_modes),
             "links": [

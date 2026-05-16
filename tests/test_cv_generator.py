@@ -31,6 +31,8 @@ def test_cv_generator_calls_node_script(tmp_path):
             full_name="Ada Lovelace",
             preferred_name="Ada",
             email="ada@example.com",
+            summary="Product leader with analytics experience.",
+            languages=("English", "Portuguese"),
             location_base="London, UK",
             work_modes=("Remote",),
             links=(),
@@ -95,6 +97,11 @@ def test_cv_generator_calls_node_script(tmp_path):
         assert "fill-template.js" in " ".join(first_call_args)
         assert len(first_call_args) == 7
         assert captured_profile["identity"]["fullName"] == "Ada Lovelace"
+        assert (
+            captured_profile["identity"]["summary"]
+            == "Product leader with analytics experience."
+        )
+        assert captured_profile["identity"]["languages"] == ["English", "Portuguese"]
         assert captured_profile["workExperience"][0]["position"] == "Product Lead"
         assert captured_profile["workExperience"][0]["period"] == "Jan 1842 - Dec 1843"
         assert captured_profile["workExperience"][0]["achievements"][0]["area"] == "Launch"
@@ -105,7 +112,7 @@ def test_cv_generator_calls_node_script(tmp_path):
         assert all(not path.exists() for path in captured_temp_paths)
 
 
-def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
+def test_cv_generator_stops_when_profile_section_file_is_missing(tmp_path):
     tool = CVGeneratorTool()
     output_path = tmp_path / "cv.tex"
     missing_section = tmp_path / "missing.md"
@@ -115,6 +122,8 @@ def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
             full_name="Ada Lovelace",
             preferred_name="Ada",
             email="ada@example.com",
+            summary=None,
+            languages=(),
             location_base="London, UK",
             work_modes=("Remote",),
             links=(),
@@ -133,14 +142,14 @@ def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
         ),
         patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="", stderr="")) as mock_run,
     ):
-        tool._run(
+        result = tool._run(
             tailored_json=json.dumps(SAMPLE_TAILORED_JSON),
             output_tex_path=str(output_path),
         )
 
-    first_call_args = mock_run.call_args_list[0][0][0]
-    assert "fill-template.js" in " ".join(first_call_args)
-    assert len(first_call_args) == 6
+    assert "Error loading profile YAML" in result
+    assert "profile section missing" in result
+    mock_run.assert_not_called()
 
 
 def test_cv_generator_raises_on_node_error(tmp_path):
@@ -242,6 +251,9 @@ def test_cv_node_renderer_uses_profile_yaml_identity_and_sections(tmp_path):
     assert "Higher School of Economics" not in rendered
     assert "ETHCC" not in rendered
     assert "DappCon" not in rendered
+    assert "education:" not in rendered
+    assert "publications:" not in rendered
+    assert "talks:" not in rendered
     assert "Data Science and analyst experience" not in rendered
 
 

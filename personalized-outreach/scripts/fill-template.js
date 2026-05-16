@@ -4,13 +4,8 @@ const path = require("path");
 /**
  * Fills a LaTeX CV template with profile data + LLM-tailored selections.
  *
- * Reads from profile/ folder and merges with LLM-generated tailored JSON.
- *
- * Profile files expected:
- * - profile/general-info.md
- * - profile/profile-summary.md
- * - profile/work-experience.md
- * - profile/personal-projects.md
+ * Reads normalized profile JSON generated from profile.yaml + structured
+ * profile/*.yaml section files and merges it with LLM-generated tailored JSON.
  *
  * Tailored JSON structure:
  * {
@@ -93,149 +88,15 @@ function capitalizeSentenceStart(text) {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function readProfileFiles(profileDir, options = {}) {
-  const includeGeneralInfo = options.includeGeneralInfo !== false;
+function createEmptyProfile() {
   const profile = {
     generalInfo: {},
     summary: "",
     workExperience: [],
     projects: [],
     sections: {},
-    source: "markdown",
+    source: "normalized",
   };
-
-  // Parse general-info.md
-  if (includeGeneralInfo && fs.existsSync(path.join(profileDir, "general-info.md"))) {
-    const generalContent = fs.readFileSync(
-      path.join(profileDir, "general-info.md"),
-      "utf-8"
-    );
-    const nameMatch = generalContent.match(/\*\*Full Name:\*\*\s*(.+)/);
-    const locationMatch = generalContent.match(/\*\*Location:\*\*\s*(.+)/);
-    const emailMatch = generalContent.match(/\*\*Email:\*\*\s*(.+)/);
-    const linkedinUrlMatch = generalContent.match(/\*\*LinkedIn:\*\*\s*(https?:\/\/[^\s]+)/);
-    const linkedinMatch = generalContent.match(/\*\*LinkedIn:\*\*\s*https?:\/\/[^\/]+\/in\/([^\/?]+)/);
-    const xUrlMatch = generalContent.match(/\*\*X:\*\*\s*(https?:\/\/[^\s]+)/);
-    const xMatch = generalContent.match(/\*\*X:\*\*\s*https?:\/\/twitter\.com\/([^\s\/]+)/);
-    const githubUrlMatch = generalContent.match(/\*\*GitHub:\*\*\s*(https?:\/\/[^\s]+)/);
-    const githubMatch = generalContent.match(/\*\*GitHub:\*\*\s*https?:\/\/github\.com\/([^\s\/]+)/);
-
-    if (nameMatch) profile.generalInfo.name = nameMatch[1].trim();
-    if (locationMatch) profile.generalInfo.location = locationMatch[1].trim();
-    if (emailMatch) profile.generalInfo.email = emailMatch[1].trim();
-    if (linkedinUrlMatch) profile.generalInfo.linkedinUrl = linkedinUrlMatch[1].trim();
-    if (linkedinMatch) profile.generalInfo.linkedin = linkedinMatch[1].trim();
-    if (xUrlMatch) profile.generalInfo.xUrl = xUrlMatch[1].trim();
-    if (xMatch) profile.generalInfo.twitter = xMatch[1].trim();
-    if (githubUrlMatch) profile.generalInfo.githubUrl = githubUrlMatch[1].trim();
-    if (githubMatch) profile.generalInfo.github = githubMatch[1].trim();
-  }
-
-  // Parse profile-summary.md
-  if (fs.existsSync(path.join(profileDir, "profile-summary.md"))) {
-    const summaryContent = fs.readFileSync(
-      path.join(profileDir, "profile-summary.md"),
-      "utf-8"
-    );
-    // Extract first paragraph after the heading
-    const match = summaryContent.match(/# Person Summary\s*\n\n(.+?)(?:\n\n|$)/s);
-    if (match) {
-      profile.summary = match[1].trim();
-    }
-  }
-
-  // Parse work-experience.md
-  if (fs.existsSync(path.join(profileDir, "work-experience.md"))) {
-    const workContent = fs.readFileSync(
-      path.join(profileDir, "work-experience.md"),
-      "utf-8"
-    );
-    // Split by role (## Company — Title)
-    const roleBlocks = workContent.split(/^##\s+/m).slice(1);
-
-    roleBlocks.forEach((block) => {
-      const lines = block.split("\n");
-      const firstLine = lines[0].trim();
-      const [company, position] = firstLine.split(" — ");
-
-      const periodMatch = block.match(/\*\*Period:\*\*\s*(.+)/);
-      const period = periodMatch ? periodMatch[1].trim() : "";
-
-      // Extract achievements
-      const achievements = [];
-      const achievementLines = block.match(/^-\s+(.+)$/gm);
-      if (achievementLines) {
-        achievementLines.forEach((line) => {
-          const achievement = line.replace(/^-\s+/, "").trim();
-          achievements.push(achievement);
-        });
-      }
-
-      // Find company description — paragraph between metadata and achievements
-      const descriptionMatch = block.match(/\*\*Industry:\*\*[^\n]+\n\n([^#\n][^\n]+)/);
-      const companyDescription = descriptionMatch ? descriptionMatch[1].trim() : "";
-
-      // Create ID from company name (lowercase, hyphenated)
-      const id = company
-        ? company
-            .toLowerCase()
-            .replace(/\s+/g, "-")
-            .replace(/[^\w-]/g, "")
-        : "";
-
-      profile.workExperience.push({
-        id,
-        company: company ? company.trim() : "",
-        position: position ? position.trim() : "",
-        period,
-        companyDescription,
-        achievements,
-      });
-    });
-  }
-
-  // Parse personal-projects.md
-  if (fs.existsSync(path.join(profileDir, "personal-projects.md"))) {
-    const projectsContent = fs.readFileSync(
-      path.join(profileDir, "personal-projects.md"),
-      "utf-8"
-    );
-    // Split by project (## Project Name)
-    const projectBlocks = projectsContent.split(/^##\s+/m).slice(1);
-
-    projectBlocks.forEach((block) => {
-      const lines = block.split("\n");
-      const projectName = lines[0].trim();
-
-      const periodMatch = block.match(/\*\*Worked period:\*\*\s*(.+)/);
-      const period = periodMatch ? periodMatch[1].trim() : "";
-
-      const urlMatch = block.match(/\*\*URL:\*\*\s*(.+)/);
-      const url = urlMatch ? urlMatch[1].trim() : "";
-
-      const descMatch = block.match(/### Description\s*\n\n(.+?)(?:\n###|$)/s);
-      const description = descMatch ? descMatch[1].trim() : "";
-
-      const techMatch = block.match(/### Tech Stack\s*\n\n(.+?)(?:\n###|$)/s);
-      const techStack = techMatch ? techMatch[1].trim() : "";
-
-      // Create ID from project name
-      const id = projectName
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^\w-]/g, "");
-
-      profile.projects.push({
-        id,
-        name: projectName,
-        period,
-        url,
-        description,
-        techStack,
-      });
-    });
-  }
-
   return profile;
 }
 
@@ -251,14 +112,17 @@ function visibleOnCv(item) {
 
 function normalizeProfile(profileDir, normalizedProfilePath) {
   const normalized = loadNormalizedProfile(normalizedProfilePath);
-  const profile = readProfileFiles(profileDir, { includeGeneralInfo: !normalized });
-  if (!normalized) return profile;
+  if (!normalized) {
+    throw new Error("normalized profile JSON is required; generate it from knowledge/profile.yaml");
+  }
 
+  const profile = createEmptyProfile();
   const identity = normalized.identity || {};
-  profile.source = "normalized";
   profile.generalInfo = {
     name: identity.fullName || identity.name || "",
     email: identity.email || "",
+    summary: identity.summary || "",
+    languages: Array.isArray(identity.languages) ? identity.languages : [],
     location: identity.location || identity.locationBase || "",
     contactLinks: Array.isArray(identity.links)
       ? identity.links.filter((link) => link && link.showOnCv === true)
@@ -994,9 +858,9 @@ function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir, no
 // CLI usage
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args.length < 4) {
+  if (args.length < 5) {
     console.error(
-      "Usage: node fill-template.js <template.tex> <tailored-data.json> <output.tex> <profile-dir> [normalized-profile.json]"
+      "Usage: node fill-template.js <template.tex> <tailored-data.json> <output.tex> <profile-dir> <normalized-profile.json>"
     );
     console.error("Example: node fill-template.js cv-template.md data.json output.tex profile/ normalized-profile.json");
     process.exit(1);

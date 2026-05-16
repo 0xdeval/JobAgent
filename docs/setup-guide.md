@@ -11,7 +11,10 @@ Example versions are available in `examples/knowledge/`.
 Install dependencies:
 
 ```bash
-pip install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.cargo/env
+# or just
+source ~/.bashrc
 uv sync
 source .venv/bin/activate
 ```
@@ -93,7 +96,7 @@ Real `knowledge/profile.yaml` stays ignored by git. Commit only example files.
 
 The file has three top-level sections:
 
-- `identity` — name, preferred name, email, location, work modes, and links used in generated artifacts.
+- `identity` — name, preferred name, email, optional candidate summary, optional languages, location, work modes, and links used in generated artifacts.
 - `search` — structured Discovery filters for roles, seniority, locations, industries, optional salary, and dealbreakers.
 - `profile_sections` — explicit links to the structured YAML profile section files the system may use as evidence.
 
@@ -104,6 +107,8 @@ identity:
   full_name: Ada Lovelace
   preferred_name: Ada
   email: ada@example.com
+  summary: Product leader with analytics experience.
+  languages: [English, Portuguese]
   location:
     base: London, UK
     work_modes: [Remote Europe]

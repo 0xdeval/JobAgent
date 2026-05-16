@@ -2,6 +2,10 @@ identity:
   full_name: Alex Candidate
   preferred_name: Alex
   email: alex@example.com
+  summary: Product leader with analytics experience.
+  languages:
+    - English
+    - Portuguese
   location:
     base: Lisbon, Portugal
     work_modes:

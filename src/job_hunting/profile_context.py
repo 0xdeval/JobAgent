@@ -39,6 +39,8 @@ class IdentityConfig:
     full_name: str
     preferred_name: str
     email: str
+    summary: str | None
+    languages: tuple[str, ...]
     location_base: str
     work_modes: tuple[str, ...]
     links: tuple[LinkConfig, ...]
@@ -272,6 +274,8 @@ def _parse_identity(raw: dict[str, Any]) -> IdentityConfig:
         full_name=_require_string(raw, "full_name", prefix="identity"),
         preferred_name=_require_string(raw, "preferred_name", prefix="identity"),
         email=_require_string(raw, "email", prefix="identity"),
+        summary=_optional_string(raw, "summary", prefix="identity"),
+        languages=tuple(_string_list(raw.get("languages", []), "identity.languages")),
         location_base=_require_string(location, "base", prefix="identity.location"),
         work_modes=tuple(
             _require_string_list(location, "work_modes", prefix="identity.location")
@@ -750,14 +754,19 @@ def _format_identity_context(identity: IdentityConfig) -> str:
     links = "\n".join(
         f"- {link.label}: {link.url} ({link.display})" for link in identity.links
     )
-    return (
-        f"Full name: {identity.full_name}\n"
-        f"Preferred name: {identity.preferred_name}\n"
-        f"Email: {identity.email}\n"
-        f"Location: {identity.location_base}\n"
-        f"Work modes: {', '.join(identity.work_modes)}\n"
-        f"Links:\n{links}"
-    )
+    lines = [
+        f"Full name: {identity.full_name}",
+        f"Preferred name: {identity.preferred_name}",
+        f"Email: {identity.email}",
+        f"Location: {identity.location_base}",
+        f"Work modes: {', '.join(identity.work_modes)}",
+    ]
+    if identity.languages:
+        lines.append(f"Languages: {', '.join(identity.languages)}")
+    if identity.summary:
+        lines.append(f"Summary: {identity.summary}")
+    lines.append(f"Links:\n{links}")
+    return "\n".join(lines)
 
 
 def _format_discovery_filter_context(config: ProfileConfig) -> str:

@@ -22,6 +22,8 @@ identity:
   full_name: Alex Candidate
   preferred_name: Alex
   email: alex@example.com
+  summary: Product leader with analytics experience.
+  languages: [English, Portuguese]
   location:
     base: Lisbon, Portugal
     work_modes: [Remote]
@@ -63,6 +65,8 @@ def test_loads_example_profile_yaml():
 
     assert config.identity.full_name == "Alex Candidate"
     assert config.identity.preferred_name == "Alex"
+    assert config.identity.summary == "Product leader with analytics experience."
+    assert config.identity.languages == ("English", "Portuguese")
     assert config.identity.links[0].key == "linkedin"
     assert config.search.roles.primary == "Product Manager"
     assert config.profile_sections["skills"] == Path("profile/skills.yaml")
@@ -351,6 +355,8 @@ def test_builds_application_context_from_example_profile_yaml():
     context = build_application_context(PROJECT_ROOT / "examples/knowledge/profile.yaml")
 
     assert "Alex Candidate" in context.identity_context
+    assert "Languages: English, Portuguese" in context.identity_context
+    assert "Summary: Product leader with analytics experience." in context.identity_context
     assert "Example Product Summit" in context.profile_sections_context
     assert "Product discovery in regulated markets" in context.profile_sections_context
 
