@@ -4,7 +4,7 @@ plan_company_sources_task:
 
     1. Read knowledge/search-criteria.md to understand role, seniority,
        location, and exclusion constraints.
-    2. Read knowledge/profile/profile-summary.md for candidate context.
+    2. Read knowledge/profile.yaml and its structured profile_sections for candidate context.
     3. Use the Company Query Planner tool to generate deterministic query
        variants from role, seniority, and industry combinations.
     4. Produce a practical sourcing plan with target company signals,

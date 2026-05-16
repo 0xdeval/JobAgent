@@ -3,6 +3,11 @@
 **Date:** 2026-05-10
 **Status:** Approved
 
+> Archival note: this original system design predates the structured YAML
+> profile section migration. References below to Markdown profile files are
+> historical context; current setup uses `knowledge/profile.yaml` plus
+> allowlisted `knowledge/profile/*.yaml` section files.
+
 ---
 
 ## Overview

@@ -2,6 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Archival note: this original implementation plan predates the structured
+> YAML profile section migration. References below to Markdown profile files are
+> historical plan context; current setup uses `knowledge/profile.yaml` plus
+> allowlisted `knowledge/profile/*.yaml` section files.
+
 **Goal:** Build a CrewAI-based multi-agent system that automates job discovery, scores vacancies, generates tailored applications (CV + cover letter + Q&A answers), and provides conversational job search assistance via Chainlit.
 
 **Architecture:** Two CrewAI Flows (DiscoveryFlow triggered by cron, ApplicationFlow triggered by Telegram approval) orchestrate two Crews. A standalone Career Advisor agent powers a Chainlit chat UI. All runtime data is shared via JSON files in `data/{YYYY-MM-DD}/` date folders.

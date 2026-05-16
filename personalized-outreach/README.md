@@ -6,15 +6,20 @@ Generate tailored CVs in LaTeX, LinkedIn outreach messages, and cover letters fo
 
 ### Required Directories
 
-Create the following directory structure in your project root:
+For this repository, use the structured profile files under `knowledge/`.
+Copy `examples/knowledge/profile.yaml` and `examples/knowledge/profile/*.yaml`
+into `knowledge/`, then edit them for the candidate.
 
 ```
-profile/
-├── profile-summary.md          # 1-2 paragraph career overview
-├── work-experience.md          # Employment history with metrics
-├── personal-projects.md        # Side projects and open-source work
-├── general-info.md             # Education, location, email, links
-└── public-performance.md       # (Optional) Talks, publications, community involvement
+knowledge/
+├── profile.yaml                # identity, search filters, profile section allowlist
+└── profile/
+    ├── work-experience.yaml    # employment history with achievements and links
+    ├── personal-projects.yaml  # side projects, open-source work, links, tech stack
+    ├── education.yaml          # education, certifications, formal training
+    ├── skills.yaml             # grouped skills the LLM can select from
+    ├── public-performance.yaml # talks and publications
+    └── values-and-interests.yaml
 
 output/
 ├── cv/                         # Generated LaTeX CVs
@@ -24,35 +29,46 @@ output/
 
 ### Profile File Contents
 
-**profile-summary.md**
+**profile.yaml**
 
-- 1-2 paragraph overview of your career and key achievements
+- Identity, search filters, and `profile_sections`
+- `profile_sections` must point to `.yaml` files only
+- Supported keys: `work_experience`, `projects`, `education`, `skills`, `public_speaking`, `values`
 
-**work-experience.md**
+**work-experience.yaml**
 
 - Company name, role title, employment dates
 - Industry/context description
-- Key achievements with metrics (% growth, revenue, MAU increase, TVL scaling, etc.)
+- Achievements with `area`, `text`, optional HTTPS-only evidence `links`
+- Optional `show_on_cv`; defaults to `true`
 
-**personal-projects.md**
+**personal-projects.yaml**
 
-- Project name and GitHub URL
+- Project name and HTTPS links
 - Description and tech stack
 - Impact or outcomes
 - Work dates
 
-**general-info.md**
+**education.yaml**
 
-- Full name, location, email
-- Education (degree, school, graduation year)
-- Languages spoken
-- Links (LinkedIn, GitHub, X, portfolio, etc.)
+- Institution, degree, field, period, grade, optional HTTPS links
 
-**public-performance.md** (optional)
+**skills.yaml**
+
+- Skill groups and skill lists
+- The LLM chooses the most relevant skills unless tailored CV JSON specifies skills directly
+
+**public-performance.yaml** (optional)
 
 - Conference talks and speaking engagements
 - Publications or blog posts
-- Community contributions
+- Optional HTTPS links
+
+**values-and-interests.yaml**
+
+- Values, interests, preferred domains, and working style
+
+Clickable links in generated CV PDFs are rendered as underlined `\href` labels.
 
 ## How to Use
 
@@ -152,7 +168,7 @@ All outputs follow these principles:
 
 ## Example Workflow
 
-1. Create `profile/` directory with your background
+1. Copy `examples/knowledge/profile.yaml` and `examples/knowledge/profile/*.yaml` into `knowledge/` and fill them with your background
 2. Invoke `/personalized-outreach`
 3. Provide company info:
    - "Gnosis - Web3 infrastructure, Safe ($100B+ AUM), CoW Protocol, Zodiac, Gnosis Chain"

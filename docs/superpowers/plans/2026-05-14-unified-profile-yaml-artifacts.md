@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Archival note: this plan predates the follow-up structured profile section
+> migration. References below to Markdown profile section files or a `summary`
+> profile section are historical plan context; current setup uses
+> `knowledge/profile.yaml` plus allowlisted `knowledge/profile/*.yaml` section
+> files.
+
 **Goal:** Add a private `knowledge/profile.yaml` contract, use it to drive Discovery and Application crew context, and remove person-specific hardcoding from generated CV and cover letter artifacts.
 
 **Architecture:** Add a focused profile context module that validates `profile.yaml`, builds Discovery/Application context slices, and keeps crew-specific section policies in code. Update crew prompts to consume prepared context instead of hardcoded file reads, then update current CV/cover-letter renderers to consume structured identity and section availability while keeping the Node CV renderer in phase 1.
