@@ -42,7 +42,10 @@ Example `knowledge/` files are available in [`examples/knowledge/`](examples/kno
 Requires Python `>=3.10,<3.14`.
 
 ```bash
-pip install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.cargo/env
+# or just
+source ~/.bashrc
 uv sync
 source .venv/bin/activate
 ```
@@ -74,7 +77,11 @@ Set values in `.env`:
 
 Create a `knowledge` folder in the project root and fill all necessary files. Examples are in [`examples/knowledge/`](examples/knowledge/); the guide for files is in [`docs/setup-guide.md`](docs/setup-guide.md).
 
-Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate. This private YAML file controls identity, Discovery search filters, and the allowlisted profile evidence files used for generated artifacts. The old `knowledge/search-criteria.md` file is deprecated by `knowledge/profile.yaml` under the `search` section.
+Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate. This private YAML file controls identity, optional candidate summary and languages, Discovery search filters, and the allowlisted structured YAML profile sections used for scoring and generated artifacts. Section examples live as `examples/knowledge/profile/*.yaml` and are referenced from `knowledge/profile.yaml.profile_sections`.
+
+Supported profile section keys are `work_experience`, `projects`, `education`, `skills`, `public_speaking`, and `values`. Point each key at a `.yaml` file under `knowledge/profile/`; Markdown section files and a `summary` / profile-summary section are no longer supported. Discovery scoring builds its profile summary from the structured scoring sections.
+
+Links inside profile section YAML must use HTTPS URLs. Clickable links in rendered CV PDFs are underlined. `show_on_cv` is optional and defaults to `true`; set it to `false` to exclude an item or group from the CV while keeping it available as source context. For work experience, `show_on_cv` applies at the role level.
 
 Edit `knowledge/companies.csv` with company name + career page URL.
 
@@ -136,6 +143,7 @@ Generated files are stored under:
 - `data/<YYYY-MM-DD>/company_candidates.csv`
 - `data/<YYYY-MM-DD>/discovery_coverage.csv`
 - `knowledge/profile.yaml`
+- `knowledge/profile/*.yaml`
 - `knowledge/search-criteria.md` (legacy; only needed for `job_hunting_source_companies`)
 - `knowledge/approved-company-candidates.csv`
 

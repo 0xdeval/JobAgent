@@ -31,11 +31,44 @@ def test_cv_generator_calls_node_script(tmp_path):
             full_name="Ada Lovelace",
             preferred_name="Ada",
             email="ada@example.com",
+            summary="Product leader with analytics experience.",
+            languages=("English", "Portuguese"),
             location_base="London, UK",
             work_modes=("Remote",),
             links=(),
         ),
         profile_sections={},
+    )
+    profile_sections = SimpleNamespace(
+        work_experience=(
+            SimpleNamespace(
+                id="analytical-engines",
+                company="Analytical Engines Ltd",
+                title="Product Lead",
+                period=SimpleNamespace(start="1842-01", end="1843-12"),
+                industry="Computing",
+                company_summary="Mechanical computation company",
+                show_on_cv=True,
+                achievements=(
+                    SimpleNamespace(
+                        area="Launch",
+                        text="Shipped programmable workflows.",
+                        links=(
+                            SimpleNamespace(
+                                label="Proof", url="https://example.com/proof"
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        projects=(),
+        education=(),
+        skills=(),
+        talks=(),
+        publications=(),
+        values=(),
+        interests=(),
     )
 
     def fake_run(command, **kwargs):
@@ -49,6 +82,10 @@ def test_cv_generator_calls_node_script(tmp_path):
             "job_hunting.tools.cv_generator.load_profile_config",
             return_value=profile_config,
         ),
+        patch(
+            "job_hunting.tools.cv_generator.load_profile_sections",
+            return_value=profile_sections,
+        ),
         patch("subprocess.run", side_effect=fake_run) as mock_run,
     ):
         tool._run(
@@ -60,10 +97,22 @@ def test_cv_generator_calls_node_script(tmp_path):
         assert "fill-template.js" in " ".join(first_call_args)
         assert len(first_call_args) == 7
         assert captured_profile["identity"]["fullName"] == "Ada Lovelace"
+        assert (
+            captured_profile["identity"]["summary"]
+            == "Product leader with analytics experience."
+        )
+        assert captured_profile["identity"]["languages"] == ["English", "Portuguese"]
+        assert captured_profile["workExperience"][0]["position"] == "Product Lead"
+        assert captured_profile["workExperience"][0]["period"] == "Jan 1842 - Dec 1843"
+        assert captured_profile["workExperience"][0]["achievements"][0]["area"] == "Launch"
+        assert (
+            captured_profile["workExperience"][0]["achievements"][0]["links"][0]["label"]
+            == "Proof"
+        )
         assert all(not path.exists() for path in captured_temp_paths)
 
 
-def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
+def test_cv_generator_stops_when_profile_section_file_is_missing(tmp_path):
     tool = CVGeneratorTool()
     output_path = tmp_path / "cv.tex"
     missing_section = tmp_path / "missing.md"
@@ -73,6 +122,8 @@ def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
             full_name="Ada Lovelace",
             preferred_name="Ada",
             email="ada@example.com",
+            summary=None,
+            languages=(),
             location_base="London, UK",
             work_modes=("Remote",),
             links=(),
@@ -85,16 +136,20 @@ def test_cv_generator_falls_back_when_profile_section_file_is_missing(tmp_path):
             "job_hunting.tools.cv_generator.load_profile_config",
             return_value=profile_config,
         ),
+        patch(
+            "job_hunting.tools.cv_generator.load_profile_sections",
+            side_effect=OSError("profile section missing"),
+        ),
         patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="", stderr="")) as mock_run,
     ):
-        tool._run(
+        result = tool._run(
             tailored_json=json.dumps(SAMPLE_TAILORED_JSON),
             output_tex_path=str(output_path),
         )
 
-    first_call_args = mock_run.call_args_list[0][0][0]
-    assert "fill-template.js" in " ".join(first_call_args)
-    assert len(first_call_args) == 6
+    assert "Error loading profile YAML" in result
+    assert "profile section missing" in result
+    mock_run.assert_not_called()
 
 
 def test_cv_generator_raises_on_node_error(tmp_path):
@@ -196,7 +251,245 @@ def test_cv_node_renderer_uses_profile_yaml_identity_and_sections(tmp_path):
     assert "Higher School of Economics" not in rendered
     assert "ETHCC" not in rendered
     assert "DappCon" not in rendered
+    assert "education:" not in rendered
+    assert "publications:" not in rendered
+    assert "talks:" not in rendered
     assert "Data Science and analyst experience" not in rendered
+
+
+def test_cv_node_renderer_renders_structured_profile_artifacts(tmp_path):
+    template_path = Path("personalized-outreach/templates/cv-template.md").resolve()
+    script_path = Path("personalized-outreach/scripts/fill-template.js").resolve()
+    tailored_path = tmp_path / "tailored.json"
+    output_path = tmp_path / "cv.tex"
+    profile_dir = tmp_path / "profile"
+    normalized_profile_path = tmp_path / "normalized-profile.json"
+    profile_dir.mkdir()
+
+    tailored_path.write_text(
+        json.dumps(
+            {
+                "summary": "Product leader for analytical engines.",
+                "workExperienceIds": ["hidden-role", "early-role", "analytical-engines"],
+                "workExperienceDescriptions": {},
+                "projectIds": ["hidden-project", "hush"],
+                "projectDescriptions": {
+                    "hush": ["Built private collaboration workflows."]
+                },
+                "skills": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+    normalized_profile_path.write_text(
+        json.dumps(
+            {
+                "identity": {
+                    "fullName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "location": "London, UK",
+                    "links": [],
+                },
+                "sections": {
+                    "education": "## Education\n\n- Legacy University should not render",
+                    "public_speaking": "## Public speaking\n\n- LegacyConf should not render",
+                },
+                "workExperience": [
+                    {
+                        "id": "early-role",
+                        "company": "Early Engines",
+                        "position": "Analyst",
+                        "location": "London, UK",
+                        "period": "Jan 1842 - Dec 1843",
+                        "companyDescription": "Computing research lab",
+                        "achievements": [
+                            "Documented early computing programs [cite: 1].",
+                            "Documented early computing programs.",
+                        ],
+                    },
+                    {
+                        "id": "hidden-role",
+                        "company": "Hidden Engines",
+                        "position": "Hidden Role",
+                        "period": "Jan 1845 - Dec 1845",
+                        "companyDescription": "Hidden company",
+                        "showOnCv": False,
+                        "achievements": ["Hidden achievement."],
+                    },
+                    {
+                        "id": "analytical-engines",
+                        "company": "Analytical Engines Ltd",
+                        "position": "Product Lead",
+                        "location": "London, UK",
+                        "period": "Feb 1844 - Present",
+                        "companyDescription": "Mechanical computation company",
+                        "achievements": [
+                            {
+                                "area": "Launch",
+                                "text": "Shipped programmable workflows",
+                                "links": [
+                                    {
+                                        "label": "Hush",
+                                        "url": "https://example.com/hush",
+                                    },
+                                    {
+                                        "label": "Growthcast",
+                                        "url": "https://example.com/growthcast",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                ],
+                "projects": [
+                    {
+                        "id": "hush",
+                        "name": "Hush",
+                        "period": "Mar 1844 - Apr 1844",
+                        "description": "Encrypted team notes.",
+                        "techStack": ["Node.js", "PostgreSQL"],
+                        "links": [
+                            {
+                                "label": "Demo",
+                                "url": "https://example.com/demo?x=50%25&ok=1#frag",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "hidden-project",
+                        "name": "Hidden Project",
+                        "description": "Hidden project description.",
+                        "showOnCv": False,
+                        "links": [],
+                    },
+                ],
+                "education": [
+                    {
+                        "institution": "University of London",
+                        "degree": "Certificate",
+                        "field": "Mathematics",
+                        "period": "1841 - 1842",
+                        "grade": "Distinction",
+                        "links": [
+                            {
+                                "label": "Transcript",
+                                "url": "https://example.com/transcript",
+                            }
+                        ],
+                    },
+                    {
+                        "institution": "Hidden University",
+                        "degree": "Hidden Degree",
+                        "field": "Hidden Field",
+                        "showOnCv": False,
+                        "links": [],
+                    }
+                ],
+                "skillGroups": [
+                    {
+                        "label": "Product",
+                        "skills": ["Roadmaps", "Launch strategy"],
+                    },
+                    {
+                        "label": "Technical",
+                        "skills": ["SQL", "Node.js"],
+                    },
+                    {
+                        "label": "Hidden Skills",
+                        "skills": ["Hidden skill"],
+                        "showOnCv": False,
+                    },
+                ],
+                "talks": [
+                    {
+                        "conference": "ProductConf",
+                        "title": "Computing products for teams",
+                        "links": [
+                            {
+                                "label": "Slides",
+                                "url": "https://example.com/slides",
+                            }
+                        ],
+                    },
+                    {
+                        "conference": "HiddenConf",
+                        "title": "Hidden talk",
+                        "showOnCv": False,
+                        "links": [],
+                    }
+                ],
+                "publications": [
+                    {
+                        "title": "Notes on the Analytical Engine",
+                        "description": "A practical computing reference.",
+                        "links": [
+                            {
+                                "label": "Paper",
+                                "url": "https://example.com/paper",
+                            }
+                        ],
+                    },
+                    {
+                        "title": "Hidden Publication",
+                        "description": "Hidden publication description.",
+                        "showOnCv": False,
+                        "links": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "node",
+            str(script_path),
+            str(template_path),
+            str(tailored_path),
+            str(output_path),
+            str(profile_dir),
+            str(normalized_profile_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Product Lead | Analytical Engines Ltd" in rendered
+    assert "Analyst | Early Engines" in rendered
+    assert "Hidden Engines" not in rendered
+    assert "Hidden Project" not in rendered
+    assert "Hidden University" not in rendered
+    assert "Hidden Skills" not in rendered
+    assert "HiddenConf" not in rendered
+    assert "Hidden Publication" not in rendered
+    assert rendered.count("Documented early computing programs") == 1
+    assert rendered.index("Product Lead | Analytical Engines Ltd") < rendered.index(
+        "Analyst | Early Engines"
+    )
+    assert (
+        "Launch: Shipped programmable workflows "
+        "\\href{https://example.com/hush}{\\underline{Hush}}. "
+        "\\href{https://example.com/growthcast}{\\underline{Growthcast}}"
+    ) in rendered
+    assert "{Hush}{Mar 1844 - Apr 1844}" in rendered
+    assert (
+        "\\href{https://example.com/demo?x=50\\%25\\&ok=1\\#frag}{\\underline{Demo}}"
+        in rendered
+    )
+    assert "Node.js, PostgreSQL" in rendered
+    assert "University of London --- Certificate, Mathematics --- 1841 - 1842 --- Distinction" in rendered
+    assert "\\href{https://example.com/transcript}{\\underline{Transcript}}" in rendered
+    assert "ProductConf --- Computing products for teams" in rendered
+    assert "\\href{https://example.com/slides}{\\underline{Slides}}" in rendered
+    assert "Notes on the Analytical Engine --- A practical computing reference." in rendered
+    assert "\\href{https://example.com/paper}{\\underline{Paper}}" in rendered
+    assert "\\textbf{Product:} Roadmaps, Launch strategy" in rendered
+    assert "\\textbf{Technical:} SQL, Node.js" in rendered
+    assert "Legacy University should not render" not in rendered
+    assert "LegacyConf should not render" not in rendered
 
 
 def test_cv_node_renderer_formats_public_speaking_markdown_as_cv_bullets(tmp_path):

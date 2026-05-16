@@ -35,13 +35,15 @@ Tone throughout: **professional but casual** — confident, human, never robotic
 
 These files live in the user's working directory and contain relevant profile facts:
 
-| File                                     | Contents                                                        |
-| ---------------------------------------- | --------------------------------------------------------------- |
-| `knowledge/profile/profile-summary.md`    | Compact index of core facts and achievements — **loaded first** |
-| `knowledge/profile/work-experience.md`    | Detailed employment history                                     |
-| `knowledge/profile/personal-projects.md`  | Side projects and personal work                                 |
-| `knowledge/profile/general-info.md`       | Education, certifications, location, links, languages           |
-| `knowledge/profile/public-performance.md` | Conference talks, publications, community involvement           |
+| File                                             | Contents                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| `knowledge/profile.yaml`                         | Identity, search filters, and the profile section allowlist          |
+| `knowledge/profile/work-experience.yaml`         | Roles, periods, company context, achievements, HTTPS evidence links  |
+| `knowledge/profile/personal-projects.yaml`       | Projects, periods, descriptions, links, and tech stack               |
+| `knowledge/profile/education.yaml`               | Education, certifications, periods, grade, and links                 |
+| `knowledge/profile/skills.yaml`                  | Skill groups the LLM can choose from unless tailored skills are set  |
+| `knowledge/profile/public-performance.yaml`      | Talks and publications with optional HTTPS evidence links            |
+| `knowledge/profile/values-and-interests.yaml`    | Values, interests, preferred domains, and working style              |
 
 These files live inside the skill directory and set the quality bar:
 
@@ -53,14 +55,16 @@ These files live inside the skill directory and set the quality bar:
 
 ### File Loading Strategy (Token Optimization)
 
-1. **Start with `profile-summary.md`** — embedded in CLAUDE.md, so do NOT re-read it unless a refresh is requested.
-2. **Load detailed files only when needed:**
-   - Summary doesn't have enough evidence to tailor accurately
-   - User requests deeper tailoring
-   - User asks to refresh/reload context
+1. **Start with `knowledge/profile.yaml`** to identify identity fields and the allowlisted `profile_sections`.
+2. **Load only the YAML sections needed for the requested artifact:**
+   - Work/projects/skills for CV evidence and tailoring
+   - Education and public performance for CV sections
+   - Values/interests when company-fit or outreach tone matters
 3. Reuse already-read file context within the same session.
-4. **Detailed files are the fact validation layer.** If there's any mismatch between summary and detailed files, the detailed files win.
+4. **Structured section files are the fact validation layer.** Do not invent facts outside the YAML evidence.
 5. **Always read best-practices files before generating the corresponding output** — read `best-practices/cv.md` before generating a CV, `best-practices/cover-letter.md` + `templates/cover-letter.md` before generating a cover letter. These set the target quality bar.
+
+Profile section links must be HTTPS-only. When links are used in generated CV PDFs, they must render as underlined clickable labels. `show_on_cv` is optional and defaults to `true`; if it is `false`, do not include that item or group in CV output.
 
 ---
 
@@ -117,7 +121,8 @@ Before generating anything, read `personalized-outreach/best-practices/cv.md`. T
 
 Analyze the company + vacancy and generate JSON selecting which profile entries to highlight + how to tailor them. The script will read real profile data and merge it with these tailored selections.
 
-**REQUIRED: Include at least 4 professional work experiences** (from knowledge/profile/work-experience.md)
+**REQUIRED: Include at least 4 professional work experiences** when that many
+visible roles exist in `knowledge/profile/work-experience.yaml`.
 
 Generate JSON with this exact structure:
 
@@ -153,9 +158,15 @@ Generate JSON with this exact structure:
 }
 ```
 
-**How IDs are generated from profile files:** The script derives IDs from the company name using: lowercase → spaces to hyphens → remove non-word characters. So "Saola & Mine'd" → `saola--mined`, "Prisma Labs, Inc." → `prisma-labs-inc`, "Wildberries / EPAM / Ozon" → `wildberries--epam--ozon`. Use these exact IDs in the JSON.
+**How IDs are chosen from profile files:** Use the explicit `id` values from
+the structured YAML section files, such as `roles[].id` in
+`work-experience.yaml` and `projects[].id` in `personal-projects.yaml`.
 
-**Company descriptions** are auto-parsed from `knowledge/profile/work-experience.md` — the first paragraph after the `**Industry:**` line in each role block. The CV template renders them as the subtitle under each job heading (`{Position | Company} → {Company description}`). You don't need to provide them in the JSON unless you want to override what's in the profile (e.g., to shorten a long description for space).
+**Company descriptions** come from `roles[].company_summary` in
+`knowledge/profile/work-experience.yaml`. The CV template renders them as the
+subtitle under each job heading (`{Position | Company} → {Company
+description}`). You don't need to provide them in the JSON unless you want to
+override what's in the profile (e.g., to shorten a long description for space).
 
 If needed, override with the optional field:
 ```json
@@ -183,12 +194,14 @@ mkdir -p .tmp && node personalized-outreach/scripts/fill-template.js \
   personalized-outreach/templates/cv-template.md \
   .tmp/tailored-data.json \
   output/cv-{company}.tex \
-  knowledge/profile/
+  knowledge/profile/ \
+  .tmp/normalized-profile.json
 ```
 
 This script:
 
-- Reads real profile data from `knowledge/profile/` folder (work-experience.md, personal-projects.md, general-info.md)
+- Reads normalized profile JSON generated from `knowledge/profile.yaml` and
+  allowlisted `knowledge/profile/*.yaml` section files
 - Reads your tailored JSON selections
 - Merges profile data + tailored achievements
 - Replaces all placeholders with content
@@ -280,7 +293,8 @@ Do NOT bold generic verbs, role titles, or company names. Only bold the metric o
 
 ### Special Notes
 
-- **Minimum 4 professional experiences:** Always select at least 4 roles from work-experience.md
+- **Minimum 4 professional experiences:** Always select at least 4 visible roles
+  from `work-experience.yaml` when available
 - **LaTeX characters:** Automatically escaped by fill-template.js (% → \%, $ → \$, etc.)
 - **Target length:** Compiled PDF will be 1–2 pages
 - **No manual assembly:** Script handles all template filling
@@ -368,7 +382,7 @@ Save to: `output/cover-letters/cover-letter-{company}.tex`
 
 ## Execution Order
 
-1. Read `profile-summary.md` (already embedded — do NOT re-read)
+1. Read `knowledge/profile.yaml`, then the allowlisted YAML sections needed for the requested outputs
 2. Run intake flow: collect company info → optional vacancy → confirm which outputs are needed
 3. If deeper evidence is needed, read relevant detailed data files
 4. Analyze company information and vacancy (if provided)
@@ -397,7 +411,7 @@ Do NOT summarize what was generated, list the files, explain what was tailored, 
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | ❌ Never invent               | No experience, skills, metrics, or achievements not in data files                                             |
 | ✅ Metrics-first, always      | Real metrics > JD keywords. Never abstract experience to match keywords if it loses the achievement           |
-| ✅ Always include all roles   | Every employer from work-experience.md must appear — never omit entries. Order them based on the work periods |
+| ✅ Respect `show_on_cv`       | Include visible roles from `work-experience.yaml`; never include entries with `show_on_cv: false`              |
 | ✅ Focus on recent roles      | The main focus almost on the recent job from the list. Reorder the experience in side the job if necessary    |
 | ✅ Always include metrics     | If the data has a number, use it. Lead with metrics, not abstract descriptions                                |
 | ✅ Always tailor              | Never produce a generic one-size-fits-all output                                                              |

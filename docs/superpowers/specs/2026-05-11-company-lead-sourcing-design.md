@@ -3,6 +3,11 @@
 **Date:** 2026-05-11
 **Status:** Pending user review
 
+> Archival note: this design spec predates the structured YAML profile section
+> migration. References below to Markdown profile files are historical context;
+> current company sourcing instructions read `knowledge/profile.yaml` and its
+> allowlisted YAML `profile_sections`.
+
 ## Objective
 
 Add a separate company lead sourcing capability that discovers new relevant companies and career pages from public/free sources, stores reviewable candidates under `data/`, and notifies the user in Telegram that new candidates are ready to review.

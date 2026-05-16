@@ -3,6 +3,11 @@
 **Date:** 2026-05-14
 **Status:** Pending written-spec review
 
+> Archival note: this design spec predates the follow-up structured profile
+> section migration. Any references below to Markdown profile section files or
+> a `summary` profile section are historical design context, not the current
+> supported setup. Current docs live in `README.md` and `docs/setup-guide.md`.
+
 ## Objective
 
 Introduce a structured `knowledge/profile.yaml` contract that becomes the

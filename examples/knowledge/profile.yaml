@@ -2,6 +2,10 @@ identity:
   full_name: Alex Candidate
   preferred_name: Alex
   email: alex@example.com
+  summary: Product leader with analytics experience.
+  languages:
+    - English
+    - Portuguese
   location:
     base: Lisbon, Portugal
     work_modes:
@@ -65,10 +69,9 @@ search:
     - Requires onsite outside Lisbon
 
 profile_sections:
-  summary: profile/profile-summary.md
-  work_experience: profile/work-experience.md
-  projects: profile/personal-projects.md
-  education: profile/education.md
-  skills: profile/skills.md
-  public_speaking: profile/public-speaking.md
-  values: profile/values-and-interests.md
+  work_experience: profile/work-experience.yaml
+  projects: profile/personal-projects.yaml
+  education: profile/education.yaml
+  skills: profile/skills.yaml
+  public_speaking: profile/public-performance.yaml
+  values: profile/values-and-interests.yaml
