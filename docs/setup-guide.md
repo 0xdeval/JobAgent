@@ -75,9 +75,12 @@ CV and cover-letter PDF generation uses `pdflatex`. Install the TeX Live
 runtime packages on Ubuntu/Debian servers:
 
 ```bash
-sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
 pdflatex --version
 ```
+
+`texlive-latex-extra` is required for packages used by the generated CV and
+cover-letter templates, including `enumitem.sty`.
 
 If your distribution uses a different binary path, set it explicitly:
 

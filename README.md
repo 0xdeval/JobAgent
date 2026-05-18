@@ -69,7 +69,7 @@ sudo apt-get install -y chromium chromium-driver
 PDF generation for tailored CVs and cover letters also requires `pdflatex`:
 
 ```bash
-sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
 pdflatex --version
 ```
 
