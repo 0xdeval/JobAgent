@@ -249,6 +249,11 @@ def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
         stderr = "driver failed"
 
     monkeypatch.setattr(scraper.subprocess, "run", lambda *args, **kwargs: _Result())
+    monkeypatch.setattr(
+        scraper,
+        "_driver_service_diagnostic",
+        lambda path: f"{path} service probe exited 1: service failed",
+    )
 
     def fake_chrome(service, options):
         raise SessionNotCreatedException("Chrome instance exited")
@@ -265,4 +270,5 @@ def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
     assert "Executable diagnostics:" in result
     assert "/usr/bin/chromium --version exited 1: driver failed" in result
     assert "/usr/bin/chromedriver --version exited 1: driver failed" in result
+    assert "/usr/bin/chromedriver service probe exited 1: service failed" in result
     assert "Retried with legacy --headless" in result

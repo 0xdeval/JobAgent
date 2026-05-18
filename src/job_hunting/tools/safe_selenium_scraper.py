@@ -1,8 +1,10 @@
 import time
 import subprocess
+from contextlib import suppress
 from os import environ
 from pathlib import Path
 from shutil import which
+from socket import socket
 from tempfile import TemporaryDirectory
 from typing import Type, Optional
 from pydantic import BaseModel, Field
@@ -211,6 +213,7 @@ def _format_command_diagnostics(browser_path: str, driver_paths: list[str]) -> s
         commands.append(browser_path)
     commands.extend(driver_paths)
     diagnostics = [_command_version_diagnostic(path) for path in _unique_paths(commands)]
+    diagnostics.extend(_driver_service_diagnostic(path) for path in _unique_paths(driver_paths))
     return "\n".join(diagnostic for diagnostic in diagnostics if diagnostic)
 
 
@@ -232,6 +235,39 @@ def _command_version_diagnostic(path: str) -> str:
     stderr = result.stderr.strip()
     details = stdout or stderr or "no output"
     return f"{path} --version exited {result.returncode}: {details}"
+
+
+def _driver_service_diagnostic(path: str) -> str:
+    port = _reserve_local_port()
+    process = None
+    try:
+        process = subprocess.Popen(
+            [path, "--enable-chrome-logs", f"--port={port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+            details = (stdout.strip() or stderr.strip() or "no output")
+            return f"{path} service probe exited {process.returncode}: {details}"
+        except subprocess.TimeoutExpired:
+            return f"{path} service probe stayed running on port {port}"
+    except OSError as exc:
+        return f"{path} service probe failed to start: {exc}"
+    finally:
+        if process and process.poll() is None:
+            process.terminate()
+            with suppress(subprocess.TimeoutExpired):
+                process.communicate(timeout=1)
+            if process.poll() is None:
+                process.kill()
+
+
+def _reserve_local_port() -> int:
+    with socket() as probe_socket:
+        probe_socket.bind(("127.0.0.1", 0))
+        return int(probe_socket.getsockname()[1])
 
 
 def _read_text_tail(path: str, max_chars: int = 4000) -> str:
