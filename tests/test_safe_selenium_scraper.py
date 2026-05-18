@@ -58,3 +58,37 @@ def test_require_chrome_binary_raises_clear_install_message(monkeypatch):
         assert "CHROME_BINARY=/path/to/chrome" in message
     else:
         raise AssertionError("Expected missing browser to fail before launch")
+
+
+def test_find_chromedriver_uses_explicit_environment_path(monkeypatch):
+    monkeypatch.setenv("CHROMEDRIVER_PATH", "/opt/chromedriver")
+    monkeypatch.setattr(scraper, "which", lambda executable: None)
+
+    assert scraper._find_chromedriver() == "/opt/chromedriver"
+
+
+def test_find_chromedriver_detects_snap_chromium_driver(monkeypatch):
+    monkeypatch.delenv("CHROMEDRIVER_PATH", raising=False)
+    monkeypatch.setattr(
+        scraper,
+        "which",
+        lambda executable: "/snap/bin/chromium.chromedriver"
+        if executable == "chromium.chromedriver"
+        else None,
+    )
+
+    assert scraper._find_chromedriver() == "/snap/bin/chromium.chromedriver"
+
+
+def test_require_chromedriver_raises_clear_install_message(monkeypatch):
+    monkeypatch.setattr(scraper, "_find_chromedriver", lambda: None)
+
+    try:
+        scraper.require_chromedriver()
+    except RuntimeError as exc:
+        message = str(exc)
+        assert "ChromeDriver is required" in message
+        assert "matches the installed Chrome/Chromium major version" in message
+        assert "CHROMEDRIVER_PATH=/snap/bin/chromium.chromedriver" in message
+    else:
+        raise AssertionError("Expected missing driver to fail before launch")

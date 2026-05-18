@@ -58,20 +58,30 @@ source .venv/bin/activate
 
 Selenium vacancy extraction also requires a Chrome-compatible browser on the
 host. On Linux servers, install Chromium or Google Chrome before starting
-`job_hunting_bot` or `job_hunting_discover`:
+`job_hunting_bot` or `job_hunting_discover`. Install a matching ChromeDriver as
+well; the browser and driver major versions must match.
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y chromium
+sudo apt-get install -y chromium chromium-driver
 ```
 
-The launch commands check this prerequisite and return a clear error if no
-browser is found. If Selenium cannot find your installed browser automatically,
-set:
+If Ubuntu installed Chromium as a Snap, use the Snap-provided driver:
 
 ```bash
 export CHROME_BINARY=/usr/bin/chromium
+export CHROMEDRIVER_PATH=/snap/bin/chromium.chromedriver
 ```
+
+If `which chromium` returns `/snap/bin/chromium`, use that path instead:
+
+```bash
+export CHROME_BINARY=/snap/bin/chromium
+export CHROMEDRIVER_PATH=/snap/bin/chromium.chromedriver
+```
+
+The launch commands check these prerequisites and return a clear error if the
+browser or driver is not found.
 
 ### 2. Configure environment
 
@@ -89,6 +99,7 @@ Set values in `.env`:
 - `TELEGRAM_ALLOWED_USERS` (optional, comma-separated)
 - `MIN_SCORE` (default: `70`)
 - `CHROME_BINARY` (optional, for example `/usr/bin/chromium`)
+- `CHROMEDRIVER_PATH` (optional, for example `/snap/bin/chromium.chromedriver`)
 
 ### 3. Add profile and target companies
 

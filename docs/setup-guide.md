@@ -38,13 +38,14 @@ Without activation, use `uv run <command>`.
 
 ### Linux Server Browser Dependencies
 
-Vacancy extraction uses Selenium with a real Chrome-compatible browser. The
-Python dependency installs Selenium and downloads ChromeDriver, but the server
-must also have Chrome or Chromium installed.
+Vacancy extraction uses Selenium with a real Chrome-compatible browser and a
+matching ChromeDriver. The browser and driver major versions must match. A
+common failure mode is Chromium `147` with ChromeDriver `114`, which can appear
+as `DevToolsActivePort file doesn't exist`.
 
 `job_hunting_bot` and `job_hunting_discover` check this at launch. If no browser
-is found, they stop immediately with an install message instead of failing later
-inside a scraping task.
+or driver is found, they stop immediately with an install message instead of
+failing later inside a scraping task.
 
 On Ubuntu/Debian, install Chromium and the libraries usually needed by headless
 Chrome:
@@ -53,6 +54,7 @@ Chrome:
 sudo apt-get update
 sudo apt-get install -y \
   chromium \
+  chromium-driver \
   fonts-liberation \
   libasound2t64 \
   libatk-bridge2.0-0 \
@@ -73,15 +75,27 @@ If your distribution uses a different binary path, set it explicitly:
 
 ```bash
 export CHROME_BINARY=/usr/bin/chromium
+export CHROMEDRIVER_PATH=/usr/bin/chromedriver
 ```
 
-For a long-running service, put the same variable in the systemd unit or shell
+If Ubuntu installed Chromium as a Snap, `which chromium` usually returns
+`/snap/bin/chromium`. Use the Snap-provided matching driver:
+
+```bash
+export CHROME_BINARY=/snap/bin/chromium
+export CHROMEDRIVER_PATH=/snap/bin/chromium.chromedriver
+```
+
+For a long-running service, put the same variables in the systemd unit or shell
 profile used to start the bot.
 
 You can check the server before starting the bot:
 
 ```bash
 which chromium || which chromium-browser || which google-chrome || which google-chrome-stable
+which chromedriver || which chromium.chromedriver
+chromium --version
+chromedriver --version || chromium.chromedriver --version
 ```
 
 ## 2. Configure Environment Variables
@@ -103,6 +117,7 @@ TELEGRAM_CHAT_ID=your-telegram-chat-id
 TELEGRAM_ALLOWED_USERS=
 MIN_SCORE=70
 CHROME_BINARY=
+CHROMEDRIVER_PATH=
 ```
 
 What each value means:
@@ -117,6 +132,7 @@ What each value means:
 | `TELEGRAM_ALLOWED_USERS` | Optional comma-separated Telegram user IDs allowed to interact with the bot. |
 | `MIN_SCORE` | Minimum vacancy score needed before Telegram approval is requested. |
 | `CHROME_BINARY` | Optional explicit path to Chrome/Chromium, for example `/usr/bin/chromium`. |
+| `CHROMEDRIVER_PATH` | Optional explicit path to matching ChromeDriver, for example `/snap/bin/chromium.chromedriver`. |
 
 ## 3. Fill Files Before Starting
 

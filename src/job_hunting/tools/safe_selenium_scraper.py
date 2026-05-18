@@ -15,17 +15,28 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 CHROME_BINARY_ENV = "CHROME_BINARY"
+CHROMEDRIVER_PATH_ENV = "CHROMEDRIVER_PATH"
 CHROME_BINARY_CANDIDATES = (
     "google-chrome",
     "google-chrome-stable",
     "chromium",
     "chromium-browser",
 )
+CHROMEDRIVER_CANDIDATES = (
+    "chromedriver",
+    "chromium.chromedriver",
+)
 CHROME_INSTALL_HELP = (
     "Chrome or Chromium is required for Selenium vacancy scraping, but no "
     "browser binary was found. Install Chromium or Google Chrome on the server "
     "(Ubuntu/Debian: sudo apt-get update && sudo apt-get install -y chromium), "
     "or set CHROME_BINARY=/path/to/chrome before starting the service."
+)
+CHROMEDRIVER_INSTALL_HELP = (
+    "ChromeDriver is required for Selenium vacancy scraping. Install a driver "
+    "that matches the installed Chrome/Chromium major version, or set "
+    "CHROMEDRIVER_PATH=/path/to/chromedriver. For Snap Chromium this is often "
+    "CHROMEDRIVER_PATH=/snap/bin/chromium.chromedriver."
 )
 
 
@@ -49,7 +60,7 @@ class SafeSeleniumScrapingTool(BaseTool):
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-        service = Service(ChromeDriverManager().install())
+        service = Service(_find_chromedriver() or ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
         try:
@@ -149,3 +160,30 @@ def require_chrome_binary() -> str:
     if not chrome_binary:
         raise RuntimeError(CHROME_INSTALL_HELP)
     return chrome_binary
+
+
+def _find_chromedriver() -> str | None:
+    configured = environ.get(CHROMEDRIVER_PATH_ENV, "").strip()
+    if configured:
+        return configured
+
+    for executable in CHROMEDRIVER_CANDIDATES:
+        path = which(executable)
+        if path:
+            return path
+
+    for path in (
+        Path("/usr/bin/chromedriver"),
+        Path("/snap/bin/chromium.chromedriver"),
+    ):
+        if path.exists():
+            return str(path)
+
+    return None
+
+
+def require_chromedriver() -> str:
+    chromedriver = _find_chromedriver()
+    if not chromedriver:
+        raise RuntimeError(CHROMEDRIVER_INSTALL_HELP)
+    return chromedriver
