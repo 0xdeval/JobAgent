@@ -284,6 +284,57 @@ def test_run_does_not_start_chromedriver_with_log_path(monkeypatch):
     assert not any(argument.startswith("--log-path=") for argument in service_args)
 
 
+def test_run_sets_xdg_runtime_dir_for_chromedriver_environment(monkeypatch):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.setattr(scraper, "_find_chrome_binary", lambda: "/snap/bin/chromium")
+    monkeypatch.setattr(
+        scraper,
+        "_find_chromedriver_candidates",
+        lambda: ["/snap/bin/chromium.chromedriver"],
+    )
+    monkeypatch.setattr(scraper.time, "sleep", lambda seconds: None)
+
+    service_env = {}
+
+    class _Element:
+        text = "Vacancy"
+
+        def get_attribute(self, name):
+            return "https://example.com/jobs/1" if name == "href" else None
+
+    class _Driver:
+        def get(self, website_url):
+            self.website_url = website_url
+
+        def execute_script(self, script):
+            self.script = script
+
+        def find_element(self, by, value):
+            return _Element()
+
+        def find_elements(self, by, value):
+            return [_Element()]
+
+        def quit(self):
+            self.closed = True
+
+    def fake_chrome(service, options):
+        service_env.update(service.env or {})
+        return _Driver()
+
+    monkeypatch.setattr(scraper.webdriver, "Chrome", fake_chrome)
+    monkeypatch.setattr(
+        scraper.WebDriverWait,
+        "until",
+        lambda self, condition: True,
+    )
+
+    result = scraper.SafeSeleniumScrapingTool()._run("https://example.com/jobs")
+
+    assert "Vacancy" in result
+    assert service_env["XDG_RUNTIME_DIR"].endswith("/xdg-runtime")
+
+
 def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
     monkeypatch.setattr(scraper, "_find_chrome_binary", lambda: "/usr/bin/chromium")
     monkeypatch.setattr(scraper, "_find_chromedriver", lambda: "/usr/bin/chromedriver")
@@ -304,6 +355,11 @@ def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
         "_driver_service_diagnostic",
         lambda path: f"{path} service probe exited 1: service failed",
     )
+    monkeypatch.setattr(
+        scraper,
+        "_browser_launch_diagnostic",
+        lambda browser_path, profile_dir: f"{browser_path} launch probe exited 1: browser failed",
+    )
 
     def fake_chrome(service, options):
         raise SessionNotCreatedException("Chrome instance exited")
@@ -320,5 +376,6 @@ def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
     assert "Executable diagnostics:" in result
     assert "/usr/bin/chromium --version exited 1: driver failed" in result
     assert "/usr/bin/chromedriver --version exited 1: driver failed" in result
+    assert "/usr/bin/chromium launch probe exited 1: browser failed" in result
     assert "/usr/bin/chromedriver service probe exited 1: service failed" in result
     assert "Retried with legacy --headless" in result

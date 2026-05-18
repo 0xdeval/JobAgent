@@ -60,6 +60,7 @@ class SafeSeleniumScrapingTool(BaseTool):
             driver_paths = _find_chromedriver_candidates()
             if not driver_paths:
                 driver_paths = [ChromeDriverManager().install()]
+            browser_env = _build_browser_process_env(profile_dir)
             driver_log_path = str(Path(profile_dir) / "chromedriver.log")
             driver = None
             startup_errors: list[str] = []
@@ -70,7 +71,7 @@ class SafeSeleniumScrapingTool(BaseTool):
                         profile_dir,
                         legacy_headless=legacy_headless,
                     )
-                    service = Service(driver_path)
+                    service = Service(driver_path, env=browser_env)
                     try:
                         driver = webdriver.Chrome(service=service, options=chrome_options)
                         break
@@ -87,6 +88,7 @@ class SafeSeleniumScrapingTool(BaseTool):
                     startup_errors,
                     driver_paths,
                     driver_log_path,
+                    profile_dir,
                 )
 
             try:
@@ -184,6 +186,7 @@ def _format_chrome_startup_error(
     startup_errors: list[str],
     driver_paths: list[str],
     driver_log_path: str,
+    profile_dir: str,
 ) -> str:
     browser_path = _find_chrome_binary() or "not found"
     latest_error = startup_errors[-1] if startup_errors else "unknown startup error"
@@ -201,10 +204,23 @@ def _format_chrome_startup_error(
     command_diagnostics = _format_command_diagnostics(browser_path, driver_paths)
     if command_diagnostics:
         message += f"\nExecutable diagnostics:\n{command_diagnostics}"
+    browser_diagnostic = _browser_launch_diagnostic(browser_path, profile_dir)
+    if browser_diagnostic:
+        message += f"\nBrowser launch diagnostic:\n{browser_diagnostic}"
     driver_log = _read_text_tail(driver_log_path)
     if driver_log:
         message += f"\nChromeDriver log tail:\n{driver_log}"
     return message
+
+
+def _build_browser_process_env(profile_dir: str) -> dict[str, str]:
+    browser_env = dict(environ)
+    if not browser_env.get("XDG_RUNTIME_DIR"):
+        runtime_dir = Path(profile_dir) / "xdg-runtime"
+        runtime_dir.mkdir(mode=0o700, exist_ok=True)
+        runtime_dir.chmod(0o700)
+        browser_env["XDG_RUNTIME_DIR"] = str(runtime_dir)
+    return browser_env
 
 
 def _format_command_diagnostics(browser_path: str, driver_paths: list[str]) -> str:
@@ -235,6 +251,38 @@ def _command_version_diagnostic(path: str) -> str:
     stderr = result.stderr.strip()
     details = stdout or stderr or "no output"
     return f"{path} --version exited {result.returncode}: {details}"
+
+
+def _browser_launch_diagnostic(browser_path: str, profile_dir: str) -> str:
+    if browser_path == "not found":
+        return ""
+
+    probe_profile_dir = str(Path(profile_dir) / "browser-probe-profile")
+    options = _build_chrome_options(probe_profile_dir)
+    command = [
+        browser_path,
+        *options.arguments,
+        "--dump-dom",
+        "about:blank",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            env=_build_browser_process_env(profile_dir),
+        )
+    except OSError as exc:
+        return f"{browser_path} launch probe failed to start: {exc}"
+    except subprocess.TimeoutExpired:
+        return f"{browser_path} launch probe timed out"
+
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    details = stderr or stdout or "no output"
+    return f"{browser_path} launch probe exited {result.returncode}: {details}"
 
 
 def _driver_service_diagnostic(path: str) -> str:
