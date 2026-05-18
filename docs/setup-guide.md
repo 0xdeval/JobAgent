@@ -71,6 +71,14 @@ sudo apt-get install -y \
   xdg-utils
 ```
 
+CV and cover-letter PDF generation uses `pdflatex`. Install the TeX Live
+runtime packages on Ubuntu/Debian servers:
+
+```bash
+sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+pdflatex --version
+```
+
 If your distribution uses a different binary path, set it explicitly:
 
 ```bash

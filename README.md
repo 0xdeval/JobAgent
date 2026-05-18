@@ -66,6 +66,13 @@ sudo apt-get update
 sudo apt-get install -y chromium chromium-driver
 ```
 
+PDF generation for tailored CVs and cover letters also requires `pdflatex`:
+
+```bash
+sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+pdflatex --version
+```
+
 If Ubuntu installed Chromium as a Snap, use the Snap-provided browser and
 driver together:
 
