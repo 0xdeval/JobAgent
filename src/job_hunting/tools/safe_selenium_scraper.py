@@ -28,6 +28,7 @@ CHROMEDRIVER_CANDIDATES = (
     "chromedriver",
     "chromium.chromedriver",
 )
+SNAP_CHROMIUM_DRIVER = "/snap/bin/chromium.chromedriver"
 CHROME_INSTALL_HELP = (
     "Chrome or Chromium is required for Selenium vacancy scraping, but no "
     "browser binary was found. Install Chromium or Google Chrome on the server "
@@ -231,6 +232,13 @@ def _find_chromedriver() -> str | None:
     if configured:
         return configured
 
+    if _is_snap_chromium(_find_chrome_binary()):
+        snap_driver = which("chromium.chromedriver")
+        if snap_driver:
+            return snap_driver
+        if Path(SNAP_CHROMIUM_DRIVER).exists():
+            return SNAP_CHROMIUM_DRIVER
+
     for executable in CHROMEDRIVER_CANDIDATES:
         path = which(executable)
         if path:
@@ -244,6 +252,10 @@ def _find_chromedriver() -> str | None:
             return str(path)
 
     return None
+
+
+def _is_snap_chromium(chrome_binary: str | None) -> bool:
+    return chrome_binary == "/snap/bin/chromium"
 
 
 def require_chromedriver() -> str:

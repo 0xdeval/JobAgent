@@ -81,6 +81,21 @@ def test_find_chromedriver_detects_snap_chromium_driver(monkeypatch):
     assert scraper._find_chromedriver() == "/snap/bin/chromium.chromedriver"
 
 
+def test_find_chromedriver_prefers_snap_driver_for_snap_chromium(monkeypatch):
+    monkeypatch.delenv("CHROMEDRIVER_PATH", raising=False)
+    monkeypatch.setattr(scraper, "_find_chrome_binary", lambda: "/snap/bin/chromium")
+    monkeypatch.setattr(
+        scraper,
+        "which",
+        lambda executable: {
+            "chromedriver": "/usr/bin/chromedriver",
+            "chromium.chromedriver": "/snap/bin/chromium.chromedriver",
+        }.get(executable),
+    )
+
+    assert scraper._find_chromedriver() == "/snap/bin/chromium.chromedriver"
+
+
 def test_require_chromedriver_raises_clear_install_message(monkeypatch):
     monkeypatch.setattr(scraper, "_find_chromedriver", lambda: None)
 
