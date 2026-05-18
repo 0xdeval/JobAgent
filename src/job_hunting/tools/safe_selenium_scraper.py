@@ -70,7 +70,7 @@ class SafeSeleniumScrapingTool(BaseTool):
                         profile_dir,
                         legacy_headless=legacy_headless,
                     )
-                    service = Service(driver_path, log_output=driver_log_path)
+                    service = Service(driver_path)
                     try:
                         driver = webdriver.Chrome(service=service, options=chrome_options)
                         break

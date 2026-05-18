@@ -234,6 +234,56 @@ def test_run_retries_with_alternate_driver_when_first_driver_exits(monkeypatch):
     assert "/snap/bin/chromium.chromedriver" in created_driver_paths
 
 
+def test_run_does_not_start_chromedriver_with_log_path(monkeypatch):
+    monkeypatch.setattr(scraper, "_find_chrome_binary", lambda: "/snap/bin/chromium")
+    monkeypatch.setattr(
+        scraper,
+        "_find_chromedriver_candidates",
+        lambda: ["/snap/bin/chromium.chromedriver"],
+    )
+    monkeypatch.setattr(scraper.time, "sleep", lambda seconds: None)
+
+    service_args = []
+
+    class _Element:
+        text = "Vacancy"
+
+        def get_attribute(self, name):
+            return "https://example.com/jobs/1" if name == "href" else None
+
+    class _Driver:
+        def get(self, website_url):
+            self.website_url = website_url
+
+        def execute_script(self, script):
+            self.script = script
+
+        def find_element(self, by, value):
+            return _Element()
+
+        def find_elements(self, by, value):
+            return [_Element()]
+
+        def quit(self):
+            self.closed = True
+
+    def fake_chrome(service, options):
+        service_args.extend(service.command_line_args())
+        return _Driver()
+
+    monkeypatch.setattr(scraper.webdriver, "Chrome", fake_chrome)
+    monkeypatch.setattr(
+        scraper.WebDriverWait,
+        "until",
+        lambda self, condition: True,
+    )
+
+    result = scraper.SafeSeleniumScrapingTool()._run("https://example.com/jobs")
+
+    assert "Vacancy" in result
+    assert not any(argument.startswith("--log-path=") for argument in service_args)
+
+
 def test_run_returns_startup_diagnostics_when_chrome_cannot_start(monkeypatch):
     monkeypatch.setattr(scraper, "_find_chrome_binary", lambda: "/usr/bin/chromium")
     monkeypatch.setattr(scraper, "_find_chromedriver", lambda: "/usr/bin/chromedriver")
