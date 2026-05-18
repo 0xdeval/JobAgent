@@ -54,27 +54,32 @@ class SafeSeleniumScrapingTool(BaseTool):
 
     def _run(self, website_url: str, css_element: str = "") -> str:
         with TemporaryDirectory(prefix="job-hunting-chrome-") as profile_dir:
-            driver_path = _find_chromedriver() or ChromeDriverManager().install()
+            driver_paths = _find_chromedriver_candidates()
+            if not driver_paths:
+                driver_paths = [ChromeDriverManager().install()]
             driver_log_path = str(Path(profile_dir) / "chromedriver.log")
             driver = None
             startup_errors: list[WebDriverException] = []
 
-            for legacy_headless in (False, True):
-                chrome_options = _build_chrome_options(
-                    profile_dir,
-                    legacy_headless=legacy_headless,
-                )
-                service = Service(driver_path, log_output=driver_log_path)
-                try:
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
+            for driver_path in driver_paths:
+                for legacy_headless in (False, True):
+                    chrome_options = _build_chrome_options(
+                        profile_dir,
+                        legacy_headless=legacy_headless,
+                    )
+                    service = Service(driver_path, log_output=driver_log_path)
+                    try:
+                        driver = webdriver.Chrome(service=service, options=chrome_options)
+                        break
+                    except WebDriverException as exc:
+                        startup_errors.append(exc)
+                if driver is not None:
                     break
-                except WebDriverException as exc:
-                    startup_errors.append(exc)
 
             if driver is None:
                 return _format_chrome_startup_error(
                     startup_errors,
-                    driver_path,
+                    driver_paths,
                     driver_log_path,
                 )
 
@@ -171,16 +176,19 @@ def _build_chrome_options(profile_dir: str, legacy_headless: bool = False) -> Op
 
 def _format_chrome_startup_error(
     startup_errors: list[WebDriverException],
-    driver_path: str,
+    driver_paths: list[str],
     driver_log_path: str,
 ) -> str:
     browser_path = _find_chrome_binary() or "not found"
     latest_error = startup_errors[-1] if startup_errors else "unknown startup error"
+    driver_path = driver_paths[0] if driver_paths else "not found"
+    tried_paths = ", ".join(driver_paths) if driver_paths else "none"
     message = (
         "Error starting Selenium Chrome session. Chromium exited before a "
         "WebDriver session was created.\n"
         f"Browser binary: {browser_path}\n"
         f"ChromeDriver: {driver_path}\n"
+        f"Tried ChromeDrivers: {tried_paths}\n"
         "Retried with legacy --headless after --headless=new failed.\n"
         f"Selenium error: {latest_error}"
     )
@@ -228,30 +236,47 @@ def require_chrome_binary() -> str:
 
 
 def _find_chromedriver() -> str | None:
+    candidates = _find_chromedriver_candidates()
+    return candidates[0] if candidates else None
+
+
+def _find_chromedriver_candidates() -> list[str]:
     configured = environ.get(CHROMEDRIVER_PATH_ENV, "").strip()
     if configured:
-        return configured
+        return [configured]
+
+    candidates: list[str] = []
 
     if _is_snap_chromium(_find_chrome_binary()):
         snap_driver = which("chromium.chromedriver")
         if snap_driver:
-            return snap_driver
+            candidates.append(snap_driver)
         if Path(SNAP_CHROMIUM_DRIVER).exists():
-            return SNAP_CHROMIUM_DRIVER
+            candidates.append(SNAP_CHROMIUM_DRIVER)
 
     for executable in CHROMEDRIVER_CANDIDATES:
         path = which(executable)
         if path:
-            return path
+            candidates.append(path)
 
     for path in (
         Path("/usr/bin/chromedriver"),
         Path("/snap/bin/chromium.chromedriver"),
     ):
         if path.exists():
-            return str(path)
+            candidates.append(str(path))
 
-    return None
+    return _unique_paths(candidates)
+
+
+def _unique_paths(paths: list[str]) -> list[str]:
+    seen = set()
+    unique = []
+    for path in paths:
+        if path not in seen:
+            unique.append(path)
+            seen.add(path)
+    return unique
 
 
 def _is_snap_chromium(chrome_binary: str | None) -> bool:
