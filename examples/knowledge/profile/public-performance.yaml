@@ -1,0 +1,18 @@
+talks:
+  - id: example-product-summit-discovery
+    conference: Example Product Summit
+    title: Product discovery in regulated markets
+    links:
+      - label: Event
+        url: https://example.com/product-summit
+  - id: ai-product-forum-evaluation-loops
+    conference: AI Product Forum
+    title: Practical evaluation loops for product teams
+
+publications:
+  - id: onboarding-metrics
+    title: Designing onboarding metrics that teams can trust
+    description: Article for Example Product Review about practical onboarding measurement.
+    links:
+      - label: Article
+        url: https://example.com/onboarding-metrics

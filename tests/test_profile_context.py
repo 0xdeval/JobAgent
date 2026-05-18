@@ -7,18 +7,23 @@ from job_hunting.profile_context import (
     build_application_context,
     build_discovery_context,
     load_profile_config,
+    load_profile_sections,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _valid_profile_yaml(*, profile_sections: str = "summary: profile/summary.md") -> str:
+def _valid_profile_yaml(
+    *, profile_sections: str = "work_experience: profile/work-experience.yaml"
+) -> str:
     return f"""
 identity:
   full_name: Alex Candidate
   preferred_name: Alex
   email: alex@example.com
+  summary: Product leader with analytics experience.
+  languages: [English, Portuguese]
   location:
     base: Lisbon, Portugal
     work_modes: [Remote]
@@ -49,22 +54,365 @@ def _write_valid_profile_yaml(path: Path, content: str | None = None) -> Path:
     return path
 
 
+def _write_profile_section(root: Path, relative_path: str, content: str) -> None:
+    path = root / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
 def test_loads_example_profile_yaml():
     config = load_profile_config(PROJECT_ROOT / "examples/knowledge/profile.yaml")
 
     assert config.identity.full_name == "Alex Candidate"
     assert config.identity.preferred_name == "Alex"
+    assert config.identity.summary == "Product leader with analytics experience."
+    assert config.identity.languages == ("English", "Portuguese")
     assert config.identity.links[0].key == "linkedin"
     assert config.search.roles.primary == "Product Manager"
-    assert config.profile_sections["skills"] == Path("profile/skills.md")
+    assert config.profile_sections["skills"] == Path("profile/skills.yaml")
+    assert "summary" not in config.profile_sections
+
+
+def test_profile_sections_must_point_to_yaml_files(tmp_path):
+    profile_yaml = tmp_path / "profile.yaml"
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(
+            profile_sections="work_experience: profile/work-experience.md"
+        ),
+    )
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="profile_sections.work_experience must point to a .yaml file",
+    ):
+        load_profile_config(profile_yaml)
+
+
+def test_loads_example_profile_yaml_with_yaml_sections():
+    config = load_profile_config(PROJECT_ROOT / "examples/knowledge/profile.yaml")
+
+    assert config.identity.full_name == "Alex Candidate"
+    assert config.search.roles.primary == "Product Manager"
+    assert config.profile_sections["work_experience"] == Path(
+        "profile/work-experience.yaml"
+    )
+    assert "summary" not in config.profile_sections
+
+
+def test_load_profile_sections_parses_yaml_sections(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    industry: SaaS
+    company_summary: Product analytics platform
+    show_on_cv: false
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+        links:
+          - label: Case study
+            url: https://example.com/case-study
+""",
+    )
+    _write_profile_section(
+        root,
+        "profile/projects.yaml",
+        """
+projects:
+  - id: launch-kit
+    name: Launch Kit
+    title: Founder
+    period: {start: 2023-02, end: 2023-11}
+    description: Product launch automation.
+    links:
+      - label: Demo
+        url: https://example.com/demo
+    tech_stack: [Python, SQL]
+""",
+    )
+    _write_profile_section(
+        root,
+        "profile/skills.yaml",
+        """
+skill_groups:
+  - name: Product
+    show_on_cv: false
+    skills: [Discovery, Roadmapping]
+""",
+    )
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(
+            profile_sections="""
+  work_experience: profile/work-experience.yaml
+  projects: profile/projects.yaml
+  skills: profile/skills.yaml
+"""
+        ),
+    )
+
+    sections = load_profile_sections(load_profile_config(profile_yaml))
+
+    role = sections.work_experience[0]
+    assert role.company == "Acme"
+    assert role.period.start == "2024-01"
+    assert role.period.end == "present"
+    assert role.show_on_cv is False
+    assert role.achievements[0].links[0].url == "https://example.com/case-study"
+
+    project = sections.projects[0]
+    assert project.name == "Launch Kit"
+    assert project.period is not None
+    assert project.period.end == "2023-11"
+    assert project.show_on_cv is True
+    assert project.links[0].label == "Demo"
+    assert project.tech_stack == ("Python", "SQL")
+
+    skill_group = sections.skills[0]
+    assert skill_group.name == "Product"
+    assert skill_group.show_on_cv is False
+    assert skill_group.skills == ("Discovery", "Roadmapping")
+
+
+@pytest.mark.parametrize(
+    ("period", "expected_message"),
+    [
+        ("{start: 2026-00, end: present}", "period.start must use YYYY-MM"),
+        ("{start: 2026-13, end: present}", "period.start must use YYYY-MM"),
+        ("{start: present, end: present}", "period.start must use YYYY-MM"),
+    ],
+)
+def test_load_profile_sections_rejects_invalid_period_start_values(
+    tmp_path, period, expected_message
+):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        f"""
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {period}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+    )
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(ProfileConfigError, match=expected_message):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_load_profile_sections_allows_present_period_end(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/work-experience.yaml",
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2026-12, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+    )
+    _write_valid_profile_yaml(profile_yaml)
+
+    sections = load_profile_sections(load_profile_config(profile_yaml))
+
+    assert sections.work_experience[0].period.start == "2026-12"
+    assert sections.work_experience[0].period.end == "present"
+
+
+@pytest.mark.parametrize(
+    ("section_content", "expected_message"),
+    [
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    show_on_cv: "false"
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+            "work_experience.roles\\[0\\].show_on_cv must be a boolean",
+        ),
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: 2026-99}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+            "work_experience.roles\\[0\\].period.end must use YYYY-MM",
+        ),
+        (
+            """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2024-01, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+        links:
+          - label: Case study
+            url: http://example.com/case-study
+""",
+            "work_experience.roles\\[0\\].achievements\\[0\\].links\\[0\\].url "
+            "must be an https URL",
+        ),
+        (
+            "roles: []\n",
+            "work_experience.roles must be a non-empty list",
+        ),
+    ],
+)
+def test_load_profile_sections_rejects_invalid_work_experience(
+    tmp_path, section_content, expected_message
+):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(root, "profile/work-experience.yaml", section_content)
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(ProfileConfigError, match=expected_message):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_load_profile_sections_rejects_non_mapping_section_yaml(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(root, "profile/work-experience.yaml", "- not a mapping\n")
+    _write_valid_profile_yaml(profile_yaml)
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="profile_sections.work_experience must be a YAML mapping",
+    ):
+        load_profile_sections(load_profile_config(profile_yaml))
+
+
+def test_optional_period_present_but_malformed_reports_mapping_error(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_yaml = root / "profile.yaml"
+    root.mkdir()
+    _write_profile_section(
+        root,
+        "profile/projects.yaml",
+        """
+projects:
+  - id: launch-kit
+    name: Launch Kit
+    period: 2024-01
+    description: Product launch automation.
+""",
+    )
+    _write_valid_profile_yaml(
+        profile_yaml,
+        _valid_profile_yaml(profile_sections="projects: profile/projects.yaml"),
+    )
+
+    with pytest.raises(
+        ProfileConfigError,
+        match="projects.projects\\[0\\].period must be a mapping",
+    ):
+        load_profile_sections(load_profile_config(profile_yaml))
 
 
 def test_builds_application_context_from_example_profile_yaml():
     context = build_application_context(PROJECT_ROOT / "examples/knowledge/profile.yaml")
 
     assert "Alex Candidate" in context.identity_context
+    assert "Languages: English, Portuguese" in context.identity_context
+    assert "Summary: Product leader with analytics experience." in context.identity_context
     assert "Example Product Summit" in context.profile_sections_context
     assert "Product discovery in regulated markets" in context.profile_sections_context
+
+
+def test_application_context_formats_structured_yaml_sections(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_dir = root / "profile"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    industry: SaaS
+    company_summary: Product analytics platform
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+        links:
+          - label: Case study
+            url: https://example.com/case-study
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "skills.yaml").write_text(
+        """
+skill_groups:
+  - name: Product
+    skills: [Product strategy, Activation]
+""",
+        encoding="utf-8",
+    )
+    profile_yaml = root / "profile.yaml"
+    profile_yaml.write_text(
+        _valid_profile_yaml(
+            profile_sections="""
+  work_experience: profile/work-experience.yaml
+  skills: profile/skills.yaml
+"""
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_application_context(profile_yaml)
+
+    assert "## Work experience" in context.profile_sections_context
+    assert "Acme - Senior Product Manager" in context.profile_sections_context
+    assert "Activation: Grew activation by 30%." in context.profile_sections_context
+    assert (
+        "Case study: https://example.com/case-study"
+        in context.profile_sections_context
+    )
+    assert "## Skills" in context.profile_sections_context
+    assert "Product: Product strategy, Activation" in context.profile_sections_context
 
 
 def test_rejects_unknown_profile_section_key(tmp_path):
@@ -96,13 +444,26 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  unsupported: profile/unsupported.md
+  unsupported: profile/unsupported.yaml
 """,
         encoding="utf-8",
     )
 
     with pytest.raises(
         ProfileConfigError, match="unsupported profile_sections key: unsupported"
+    ):
+        load_profile_config(profile_yaml)
+
+
+def test_rejects_summary_profile_section_key(tmp_path):
+    profile_yaml = tmp_path / "profile.yaml"
+    profile_yaml.write_text(
+        _valid_profile_yaml(profile_sections="summary: profile/profile-summary.yaml"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ProfileConfigError, match="unsupported profile_sections key: summary"
     ):
         load_profile_config(profile_yaml)
 
@@ -212,7 +573,7 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  summary: profile/missing-summary.md
+  work_experience: profile/missing-work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -220,7 +581,8 @@ profile_sections:
     with pytest.raises(
         ProfileConfigError,
         match=(
-            "profile_sections.summary points to profile/missing-summary.md, "
+            "profile_sections.work_experience points to "
+            "profile/missing-work-experience.yaml, "
             "but the file does not exist"
         ),
     ):
@@ -231,10 +593,19 @@ def test_discovery_context_rejects_profile_without_scoring_sections(tmp_path):
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "projects.md").write_text("Side project details.", encoding="utf-8")
+    (profile_dir / "education.yaml").write_text(
+        """
+education:
+  - id: degree
+    institution: Example University
+    degree: MBA
+    field: Business
+""",
+        encoding="utf-8",
+    )
     profile_yaml = root / "profile.yaml"
     profile_yaml.write_text(
-        _valid_profile_yaml(profile_sections="projects: profile/projects.md"),
+        _valid_profile_yaml(profile_sections="education: profile/education.yaml"),
         encoding="utf-8",
     )
 
@@ -249,14 +620,25 @@ def test_discovery_context_uses_search_and_system_owned_scoring_sections(tmp_pat
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
-        "Senior PM with fintech and AI experience.", encoding="utf-8"
+    (profile_dir / "skills.yaml").write_text(
+        """
+skill_groups:
+  - name: Product
+    skills: [Product strategy, SQL]
+""",
+        encoding="utf-8",
     )
-    (profile_dir / "skills.md").write_text(
-        "- Product strategy\n- SQL\n", encoding="utf-8"
-    )
-    (profile_dir / "work-experience.md").write_text(
-        "## Acme -- Senior Product Manager\n\n- Grew activation by 30%.",
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
         encoding="utf-8",
     )
     profile_yaml = root / "profile.yaml"
@@ -287,9 +669,8 @@ search:
   salary: "$120000+"
   dealbreakers: [Requires relocation outside Portugal]
 profile_sections:
-  summary: profile/profile-summary.md
-  skills: profile/skills.md
-  work_experience: profile/work-experience.md
+  skills: profile/skills.yaml
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -298,9 +679,164 @@ profile_sections:
 
     assert "Product Manager" in context.filter_context
     assert "US-only remote" in context.filter_context
-    assert "Senior PM with fintech" in context.scoring_context
     assert "Product strategy" in context.scoring_context
     assert "Grew activation by 30%" in context.scoring_context
+
+
+def test_discovery_context_uses_structured_scoring_sections_without_summary(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_dir = root / "profile"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Activation
+        text: Grew activation by 30%.
+""",
+        encoding="utf-8",
+    )
+    profile_yaml = root / "profile.yaml"
+    profile_yaml.write_text(
+        _valid_profile_yaml(
+            profile_sections="work_experience: profile/work-experience.yaml"
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_discovery_context(profile_yaml)
+
+    assert "Generated candidate scoring context" in context.scoring_context
+    assert "Acme - Senior Product Manager" in context.scoring_context
+    assert "Grew activation by 30%" in context.scoring_context
+
+
+def test_discovery_context_ignores_invalid_non_scoring_sections(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_dir = root / "profile"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Activation
+        text: Scoring work sentinel.
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "values.yaml").write_text(
+        "values: []\n",
+        encoding="utf-8",
+    )
+    profile_yaml = root / "profile.yaml"
+    profile_yaml.write_text(
+        _valid_profile_yaml(
+            profile_sections="""
+  work_experience: profile/work-experience.yaml
+  values: profile/values.yaml
+"""
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_discovery_context(profile_yaml)
+
+    assert "Scoring work sentinel." in context.scoring_context
+
+
+def test_discovery_context_includes_only_scoring_sections(tmp_path):
+    root = tmp_path / "knowledge"
+    profile_dir = root / "profile"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: work-sentinel
+    company: WorkScoringCo
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Work
+        text: WORK_SCORING_SENTINEL.
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "projects.yaml").write_text(
+        """
+projects:
+  - id: project-sentinel
+    name: ProjectScoring
+    description: PROJECT_SCORING_SENTINEL.
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "skills.yaml").write_text(
+        """
+skill_groups:
+  - name: SkillsScoring
+    skills: [SKILLS_SCORING_SENTINEL]
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "education.yaml").write_text(
+        """
+education:
+  - id: education-sentinel
+    institution: EducationSentinel University
+    degree: MBA
+    field: EDUCATION_NON_SCORING_SENTINEL
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "public-performance.yaml").write_text(
+        """
+talks:
+  - id: talk-sentinel
+    conference: PublicPerformanceSentinelConf
+    title: PUBLIC_PERFORMANCE_NON_SCORING_SENTINEL
+""",
+        encoding="utf-8",
+    )
+    (profile_dir / "values.yaml").write_text(
+        """
+values:
+  - id: values-sentinel
+    title: ValuesSentinel
+    description: VALUES_NON_SCORING_SENTINEL.
+""",
+        encoding="utf-8",
+    )
+    profile_yaml = root / "profile.yaml"
+    profile_yaml.write_text(
+        _valid_profile_yaml(
+            profile_sections="""
+  work_experience: profile/work-experience.yaml
+  projects: profile/projects.yaml
+  education: profile/education.yaml
+  skills: profile/skills.yaml
+  public_speaking: profile/public-performance.yaml
+  values: profile/values.yaml
+"""
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_discovery_context(profile_yaml)
+
+    assert "WORK_SCORING_SENTINEL" in context.scoring_context
+    assert "PROJECT_SCORING_SENTINEL" in context.scoring_context
+    assert "SKILLS_SCORING_SENTINEL" in context.scoring_context
+    assert "EDUCATION_NON_SCORING_SENTINEL" not in context.scoring_context
+    assert "PUBLIC_PERFORMANCE_NON_SCORING_SENTINEL" not in context.scoring_context
+    assert "VALUES_NON_SCORING_SENTINEL" not in context.scoring_context
 
 
 def test_search_salary_is_optional_and_omitted_from_discovery_context_when_absent(
@@ -309,8 +845,18 @@ def test_search_salary_is_optional_and_omitted_from_discovery_context_when_absen
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
-        "Senior PM with fintech experience.", encoding="utf-8"
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Fintech
+        text: Built fintech products.
+""",
+        encoding="utf-8",
     )
     profile_yaml = root / "profile.yaml"
     profile_yaml.write_text(
@@ -339,7 +885,7 @@ search:
     preferred: [SaaS]
   dealbreakers: []
 profile_sections:
-  summary: profile/profile-summary.md
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -357,10 +903,20 @@ def test_application_context_reads_only_allowlisted_sections(tmp_path):
     root = tmp_path / "knowledge"
     profile_dir = root / "profile"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "profile-summary.md").write_text(
-        "Approved summary.", encoding="utf-8"
+    (profile_dir / "work-experience.yaml").write_text(
+        """
+roles:
+  - id: acme
+    company: Acme
+    title: Senior Product Manager
+    period: {start: 2023-01, end: present}
+    achievements:
+      - area: Evidence
+        text: Approved work evidence.
+""",
+        encoding="utf-8",
     )
-    (profile_dir / "hidden.md").write_text("Hidden fact.", encoding="utf-8")
+    (profile_dir / "hidden.yaml").write_text("Hidden fact.", encoding="utf-8")
     profile_yaml = root / "profile.yaml"
     profile_yaml.write_text(
         """
@@ -389,7 +945,7 @@ search:
   salary: "$120000+"
   dealbreakers: []
 profile_sections:
-  summary: profile/profile-summary.md
+  work_experience: profile/work-experience.yaml
 """,
         encoding="utf-8",
     )
@@ -397,5 +953,5 @@ profile_sections:
     context = build_application_context(profile_yaml)
 
     assert "Alex Candidate" in context.identity_context
-    assert "Approved summary." in context.profile_sections_context
+    assert "Approved work evidence." in context.profile_sections_context
     assert "Hidden fact." not in context.profile_sections_context

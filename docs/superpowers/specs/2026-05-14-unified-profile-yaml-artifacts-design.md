@@ -3,6 +3,11 @@
 **Date:** 2026-05-14
 **Status:** Pending written-spec review
 
+> Archival note: this design spec predates the follow-up structured profile
+> section migration. Any references below to Markdown profile section files or
+> a `summary` profile section are historical design context, not the current
+> supported setup. Current docs live in `README.md` and `docs/setup-guide.md`.
+
 ## Objective
 
 Introduce a structured `knowledge/profile.yaml` contract that becomes the
@@ -18,7 +23,7 @@ core control data.
 
 In scope:
 
-- Replace `knowledge/search-criteria.md` usage in Discovery Crew with
+- Replace `knowledge/profile.yaml` usage in Discovery Crew with
   `knowledge/profile.yaml.search`.
 - Use `knowledge/profile.yaml.identity` for generated artifact identity fields.
 - Use `knowledge/profile.yaml.profile_sections` as an explicit allowlist of
@@ -31,9 +36,6 @@ In scope:
 
 Out of scope:
 
-- Company Sourcing Crew changes. The company sourcing crew is expected to be
-  removed in a later release, so its current `search-criteria.md` usage should
-  not shape this design.
 - Full CV renderer migration from Node to Python. The first implementation
   should keep current renderers and remove hardcoding. A later phase may move
   CV rendering into Python.
@@ -46,12 +48,12 @@ Discovery currently has two agents:
 
 - `vacancy_scout`
   - receives `today`, `company`, and `career_page`
-  - reads `knowledge/search-criteria.md`
+  - reads `knowledge/profile.yaml`
   - scrapes career pages and job pages
   - writes vacancy JSON files under `data/<date>/vacancies/`
 - `fit_analyst`
   - reads vacancy JSON files
-  - reads `knowledge/search-criteria.md`
+  - reads `knowledge/profile.yaml`
   - reads `knowledge/profile/profile-summary.md`
   - writes score JSON files under `data/<date>/scores/`
 
@@ -184,7 +186,7 @@ in the CV header.
 
 ### Search
 
-`search` is structured only. It replaces free-form `search-criteria.md` for
+`search` is structured only. It replaces free-form `profile.yaml.search` for
 Discovery Crew filtering and scoring.
 
 It contains:
@@ -424,7 +426,7 @@ The implementation plan should preserve this design boundary:
 
 - user-owned YAML defines identity, search, and allowed profile evidence files
 - code-owned policies decide which sections each crew receives
-- Discovery replaces `search-criteria.md` with `profile.yaml.search`
+- Discovery replaces `profile.yaml.search` with `profile.yaml.search`
 - Application keeps Profile Steward as the central brief builder
 - renderers remove hardcoded personal content before any larger renderer
   migration

@@ -1,0 +1,15 @@
+projects:
+  - id: hush
+    name: Hush
+    title: Crypto privacy payment solution
+    period:
+      start: 2026-02
+      end: 2026-03
+    description: Privacy-focused DeFi integration for Aave that supports private collateral, borrow, repayment, and withdrawal flows.
+    links:
+      - label: GitHub
+        url: https://github.com/0xdeval/hush
+    tech_stack:
+      - Aave
+      - Privacy Infrastructure
+      - Smart Contracts

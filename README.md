@@ -7,18 +7,17 @@
 [![Chainlit](https://img.shields.io/badge/Chainlit-Advisor%20UI-1E90FF?style=flat)](https://docs.chainlit.io/)
 [![uv](https://img.shields.io/badge/uv-Dependency%20Manager-DE5FE9?style=flat)](https://docs.astral.sh/uv/)
 
-AI-powered job hunting automation that discovers relevant vacancies, scores them against your profile, asks for approval in Telegram, and generates tailored application documents (CV, cover letter, answers) for approved roles. It can also source new company career-page candidates for later vacancy discovery.
+AI-powered job hunting automation that discovers relevant vacancies from your curated company list, scores them against your profile, asks for approval in Telegram, and generates tailored application documents (CV, cover letter, answers) for approved roles.
 
 ## What This Service Is For
 
 This project helps you run a structured, human-in-the-loop job search pipeline:
 
-1. Discover new roles from company career pages.
-2. Source new company career pages from public search queries.
-3. Score each role for fit.
-4. Ask you to approve/decline vacancies via Telegram.
-5. Generate application assets for approved jobs.
-6. Track all artifacts locally in `data/`.
+1. Discover new roles from curated company career pages.
+2. Score each role for fit.
+3. Ask you to approve/decline vacancies via Telegram.
+4. Generate application assets for approved jobs.
+5. Track all artifacts locally in `data/`.
 
 ## ATS Support (100% Working)
 
@@ -42,7 +41,10 @@ Example `knowledge/` files are available in [`examples/knowledge/`](examples/kno
 Requires Python `>=3.10,<3.14`.
 
 ```bash
-pip install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.cargo/env
+# or just
+source ~/.bashrc
 uv sync
 source .venv/bin/activate
 ```
@@ -74,11 +76,13 @@ Set values in `.env`:
 
 Create a `knowledge` folder in the project root and fill all necessary files. Examples are in [`examples/knowledge/`](examples/knowledge/); the guide for files is in [`docs/setup-guide.md`](docs/setup-guide.md).
 
-Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate. This private YAML file controls identity, Discovery search filters, and the allowlisted profile evidence files used for generated artifacts. The old `knowledge/search-criteria.md` file is deprecated by `knowledge/profile.yaml` under the `search` section.
+Copy `examples/knowledge/profile.yaml` to `knowledge/profile.yaml` and edit it for the candidate. This private YAML file controls identity, optional candidate summary and languages, Discovery search filters, and the allowlisted structured YAML profile sections used for scoring and generated artifacts. Section examples live as `examples/knowledge/profile/*.yaml` and are referenced from `knowledge/profile.yaml.profile_sections`.
+
+Supported profile section keys are `work_experience`, `projects`, `education`, `skills`, `public_speaking`, and `values`. Point each key at a `.yaml` file under `knowledge/profile/`; Markdown section files and a `summary` / profile-summary section are no longer supported. Discovery scoring builds its profile summary from the structured scoring sections.
+
+Links inside profile section YAML must use HTTPS URLs. Clickable links in rendered CV PDFs are underlined. `show_on_cv` is optional and defaults to `true`; set it to `false` to exclude an item or group from the CV while keeping it available as source context. For work experience, `show_on_cv` applies at the role level.
 
 Edit `knowledge/companies.csv` with company name + career page URL.
-
-Optional: edit `knowledge/company-source-queries.yaml` to tune public search queries used for finding new company career pages. This does not modify `knowledge/companies.csv`; sourced candidates are written separately for review. Current company sourcing still reads `knowledge/search-criteria.md` as a legacy input, so keep that file only if you run `job_hunting_source_companies`.
 
 ### 4. Run the system
 
@@ -102,12 +106,6 @@ Run discovery (terminal 2, cron-friendly entrypoint):
 job_hunting_discover
 ```
 
-Source new company career-page candidates (cron-friendly, separate from vacancy discovery):
-
-```bash
-job_hunting_source_companies
-```
-
 Optional: start the local advisor chat UI (Chainlit):
 
 ```bash
@@ -124,8 +122,6 @@ job_hunting_advisor
 
 Generated application files use company and position names, for example `Kraken-SeniorProductManager-CV.pdf`, `Kraken-SeniorProductManager-QA.md`, and `Kraken-SeniorProductManager-CoverLetter.pdf`.
 
-Run company sourcing when you want to expand the company list. It searches using `knowledge/search-criteria.md` and `knowledge/company-source-queries.yaml`, deduplicates against `knowledge/companies.csv`, `knowledge/approved-company-candidates.csv`, and prior generated candidates, writes rich review candidates to `data/<date>/company_candidates.csv`, and sends each new pending candidate to Telegram with `Approve`/`Decline` buttons. Approved candidates are appended to `knowledge/approved-company-candidates.csv` for future discovery runs.
-
 ## Data Layout
 
 Generated files are stored under:
@@ -133,11 +129,9 @@ Generated files are stored under:
 - `data/<YYYY-MM-DD>/vacancies/*.json`
 - `data/<YYYY-MM-DD>/scores/*.json`
 - `data/<YYYY-MM-DD>/applications/<vacancy_id>/...`
-- `data/<YYYY-MM-DD>/company_candidates.csv`
 - `data/<YYYY-MM-DD>/discovery_coverage.csv`
 - `knowledge/profile.yaml`
-- `knowledge/search-criteria.md` (legacy; only needed for `job_hunting_source_companies`)
-- `knowledge/approved-company-candidates.csv`
+- `knowledge/profile/*.yaml`
 
 ## Main Commands
 
@@ -149,7 +143,6 @@ source .venv/bin/activate
 
 - `job_hunting_bot` — Starts the Telegram bot. Output: waits for Telegram actions and handles approvals/status updates.
 - `job_hunting_discover` — Reads `knowledge/profile.yaml` and `knowledge/companies.csv`, discovers vacancies, scores them, and sends suitable roles to Telegram. Output: `data/<YYYY-MM-DD>/discovery_coverage.csv`, `data/<YYYY-MM-DD>/vacancies/`, `data/<YYYY-MM-DD>/scores/`, and application files after approval.
-- `job_hunting_source_companies` — Searches for new company career-page candidates using the legacy `knowledge/search-criteria.md` input plus `knowledge/company-source-queries.yaml`. Output: `data/<YYYY-MM-DD>/company_candidates.csv` and a Telegram review notification when new candidates are found.
 - `job_hunting_advisor` — Starts the Chainlit advisor UI. Output: local web chat for career/application questions.
 
 Without activating `.venv`, prefix commands with `uv run`, for example:

@@ -4,13 +4,8 @@ const path = require("path");
 /**
  * Fills a LaTeX CV template with profile data + LLM-tailored selections.
  *
- * Reads from profile/ folder and merges with LLM-generated tailored JSON.
- *
- * Profile files expected:
- * - profile/general-info.md
- * - profile/profile-summary.md
- * - profile/work-experience.md
- * - profile/personal-projects.md
+ * Reads normalized profile JSON generated from profile.yaml + structured
+ * profile/*.yaml section files and merges it with LLM-generated tailored JSON.
  *
  * Tailored JSON structure:
  * {
@@ -29,7 +24,7 @@ const path = require("path");
 
 function escapeLatex(text) {
   if (!text) return "";
-  return text
+  return String(text)
     .replace(/\\/g, "\\textbackslash{}")
     .replace(/[&%$#_{}~^]/g, (char) => {
       const escapeMap = {
@@ -53,6 +48,27 @@ function escapeLatex(text) {
     .replace(/”/g, "''");   // right double quotation mark
 }
 
+function escapeLatexUrl(url) {
+  if (!url) return "";
+  return String(url).replace(/[\\%#{}_&$]/g, (char) => {
+    const escapeMap = {
+      "\\": "%5C",
+      "%": "\\%",
+      "#": "\\#",
+      _: "\\_",
+      "{": "\\{",
+      "}": "\\}",
+      "&": "\\&",
+      $: "\\$",
+    };
+    return escapeMap[char] || char;
+  });
+}
+
+function latexHref(url, content) {
+  return `\\href{${escapeLatexUrl(url)}}{${content}}`;
+}
+
 function sanitizeGeneratedText(text) {
   if (!text) return "";
   return text
@@ -72,149 +88,15 @@ function capitalizeSentenceStart(text) {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function readProfileFiles(profileDir, options = {}) {
-  const includeGeneralInfo = options.includeGeneralInfo !== false;
+function createEmptyProfile() {
   const profile = {
     generalInfo: {},
     summary: "",
     workExperience: [],
     projects: [],
     sections: {},
-    source: "markdown",
+    source: "normalized",
   };
-
-  // Parse general-info.md
-  if (includeGeneralInfo && fs.existsSync(path.join(profileDir, "general-info.md"))) {
-    const generalContent = fs.readFileSync(
-      path.join(profileDir, "general-info.md"),
-      "utf-8"
-    );
-    const nameMatch = generalContent.match(/\*\*Full Name:\*\*\s*(.+)/);
-    const locationMatch = generalContent.match(/\*\*Location:\*\*\s*(.+)/);
-    const emailMatch = generalContent.match(/\*\*Email:\*\*\s*(.+)/);
-    const linkedinUrlMatch = generalContent.match(/\*\*LinkedIn:\*\*\s*(https?:\/\/[^\s]+)/);
-    const linkedinMatch = generalContent.match(/\*\*LinkedIn:\*\*\s*https?:\/\/[^\/]+\/in\/([^\/?]+)/);
-    const xUrlMatch = generalContent.match(/\*\*X:\*\*\s*(https?:\/\/[^\s]+)/);
-    const xMatch = generalContent.match(/\*\*X:\*\*\s*https?:\/\/twitter\.com\/([^\s\/]+)/);
-    const githubUrlMatch = generalContent.match(/\*\*GitHub:\*\*\s*(https?:\/\/[^\s]+)/);
-    const githubMatch = generalContent.match(/\*\*GitHub:\*\*\s*https?:\/\/github\.com\/([^\s\/]+)/);
-
-    if (nameMatch) profile.generalInfo.name = nameMatch[1].trim();
-    if (locationMatch) profile.generalInfo.location = locationMatch[1].trim();
-    if (emailMatch) profile.generalInfo.email = emailMatch[1].trim();
-    if (linkedinUrlMatch) profile.generalInfo.linkedinUrl = linkedinUrlMatch[1].trim();
-    if (linkedinMatch) profile.generalInfo.linkedin = linkedinMatch[1].trim();
-    if (xUrlMatch) profile.generalInfo.xUrl = xUrlMatch[1].trim();
-    if (xMatch) profile.generalInfo.twitter = xMatch[1].trim();
-    if (githubUrlMatch) profile.generalInfo.githubUrl = githubUrlMatch[1].trim();
-    if (githubMatch) profile.generalInfo.github = githubMatch[1].trim();
-  }
-
-  // Parse profile-summary.md
-  if (fs.existsSync(path.join(profileDir, "profile-summary.md"))) {
-    const summaryContent = fs.readFileSync(
-      path.join(profileDir, "profile-summary.md"),
-      "utf-8"
-    );
-    // Extract first paragraph after the heading
-    const match = summaryContent.match(/# Person Summary\s*\n\n(.+?)(?:\n\n|$)/s);
-    if (match) {
-      profile.summary = match[1].trim();
-    }
-  }
-
-  // Parse work-experience.md
-  if (fs.existsSync(path.join(profileDir, "work-experience.md"))) {
-    const workContent = fs.readFileSync(
-      path.join(profileDir, "work-experience.md"),
-      "utf-8"
-    );
-    // Split by role (## Company — Title)
-    const roleBlocks = workContent.split(/^##\s+/m).slice(1);
-
-    roleBlocks.forEach((block) => {
-      const lines = block.split("\n");
-      const firstLine = lines[0].trim();
-      const [company, position] = firstLine.split(" — ");
-
-      const periodMatch = block.match(/\*\*Period:\*\*\s*(.+)/);
-      const period = periodMatch ? periodMatch[1].trim() : "";
-
-      // Extract achievements
-      const achievements = [];
-      const achievementLines = block.match(/^-\s+(.+)$/gm);
-      if (achievementLines) {
-        achievementLines.forEach((line) => {
-          const achievement = line.replace(/^-\s+/, "").trim();
-          achievements.push(achievement);
-        });
-      }
-
-      // Find company description — paragraph between metadata and achievements
-      const descriptionMatch = block.match(/\*\*Industry:\*\*[^\n]+\n\n([^#\n][^\n]+)/);
-      const companyDescription = descriptionMatch ? descriptionMatch[1].trim() : "";
-
-      // Create ID from company name (lowercase, hyphenated)
-      const id = company
-        ? company
-            .toLowerCase()
-            .replace(/\s+/g, "-")
-            .replace(/[^\w-]/g, "")
-        : "";
-
-      profile.workExperience.push({
-        id,
-        company: company ? company.trim() : "",
-        position: position ? position.trim() : "",
-        period,
-        companyDescription,
-        achievements,
-      });
-    });
-  }
-
-  // Parse personal-projects.md
-  if (fs.existsSync(path.join(profileDir, "personal-projects.md"))) {
-    const projectsContent = fs.readFileSync(
-      path.join(profileDir, "personal-projects.md"),
-      "utf-8"
-    );
-    // Split by project (## Project Name)
-    const projectBlocks = projectsContent.split(/^##\s+/m).slice(1);
-
-    projectBlocks.forEach((block) => {
-      const lines = block.split("\n");
-      const projectName = lines[0].trim();
-
-      const periodMatch = block.match(/\*\*Worked period:\*\*\s*(.+)/);
-      const period = periodMatch ? periodMatch[1].trim() : "";
-
-      const urlMatch = block.match(/\*\*URL:\*\*\s*(.+)/);
-      const url = urlMatch ? urlMatch[1].trim() : "";
-
-      const descMatch = block.match(/### Description\s*\n\n(.+?)(?:\n###|$)/s);
-      const description = descMatch ? descMatch[1].trim() : "";
-
-      const techMatch = block.match(/### Tech Stack\s*\n\n(.+?)(?:\n###|$)/s);
-      const techStack = techMatch ? techMatch[1].trim() : "";
-
-      // Create ID from project name
-      const id = projectName
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^\w-]/g, "");
-
-      profile.projects.push({
-        id,
-        name: projectName,
-        period,
-        url,
-        description,
-        techStack,
-      });
-    });
-  }
-
   return profile;
 }
 
@@ -224,16 +106,23 @@ function loadNormalizedProfile(normalizedProfilePath) {
   return JSON.parse(fs.readFileSync(normalizedProfilePath, "utf-8"));
 }
 
+function visibleOnCv(item) {
+  return !item || item.showOnCv !== false;
+}
+
 function normalizeProfile(profileDir, normalizedProfilePath) {
   const normalized = loadNormalizedProfile(normalizedProfilePath);
-  const profile = readProfileFiles(profileDir, { includeGeneralInfo: !normalized });
-  if (!normalized) return profile;
+  if (!normalized) {
+    throw new Error("normalized profile JSON is required; generate it from knowledge/profile.yaml");
+  }
 
+  const profile = createEmptyProfile();
   const identity = normalized.identity || {};
-  profile.source = "normalized";
   profile.generalInfo = {
     name: identity.fullName || identity.name || "",
     email: identity.email || "",
+    summary: identity.summary || "",
+    languages: Array.isArray(identity.languages) ? identity.languages : [],
     location: identity.location || identity.locationBase || "",
     contactLinks: Array.isArray(identity.links)
       ? identity.links.filter((link) => link && link.showOnCv === true)
@@ -241,10 +130,22 @@ function normalizeProfile(profileDir, normalizedProfilePath) {
   };
   profile.sections = normalized.sections || {};
   if (Array.isArray(normalized.workExperience)) {
-    profile.workExperience = normalized.workExperience;
+    profile.workExperience = normalized.workExperience.filter(visibleOnCv);
   }
   if (Array.isArray(normalized.projects)) {
-    profile.projects = normalized.projects;
+    profile.projects = normalized.projects.filter(visibleOnCv);
+  }
+  if (Array.isArray(normalized.education)) {
+    profile.education = normalized.education.filter(visibleOnCv);
+  }
+  if (Array.isArray(normalized.skillGroups)) {
+    profile.skillGroups = normalized.skillGroups.filter(visibleOnCv);
+  }
+  if (Array.isArray(normalized.talks)) {
+    profile.talks = normalized.talks.filter(visibleOnCv);
+  }
+  if (Array.isArray(normalized.publications)) {
+    profile.publications = normalized.publications.filter(visibleOnCv);
   }
   if (typeof normalized.summary === "string" && normalized.summary.trim()) {
     profile.summary = normalized.summary.trim();
@@ -268,19 +169,46 @@ function dedupeStrings(items) {
   const seen = new Set();
   const result = [];
   for (const item of items) {
-    const normalized = (item || "").trim().toLowerCase();
+    const text = sanitizeGeneratedText(item || "");
+    const normalized = text.toLowerCase();
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
-    result.push(sanitizeGeneratedText(item.trim()));
+    result.push(text);
   }
   return result;
+}
+
+function dedupeItems(items, getKey) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = getKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function formatLatexLink(link) {
+  if (!link || !link.url) return "";
+  const label = link.label || link.display || link.url;
+  return latexHref(link.url, `\\underline{${escapeLatex(label)}}`);
+}
+
+function formatLatexLinks(links) {
+  if (!Array.isArray(links)) return "";
+  return links.map(formatLatexLink).filter(Boolean).join(". ");
 }
 
 function formatNormalizedContactLine(identity) {
   const parts = [];
   if (identity.email) {
     parts.push(
-      `\\href{mailto:${identity.email}}{Email: \\underline{${escapeLatex(identity.email)}}}`
+      latexHref(
+        `mailto:${identity.email}`,
+        `Email: \\underline{${escapeLatex(identity.email)}}`
+      )
     );
   }
 
@@ -289,7 +217,10 @@ function formatNormalizedContactLine(identity) {
     const label = link.label || link.key || "Link";
     const display = link.display || link.url;
     parts.push(
-      `\\href{${link.url}}{${escapeLatex(label)}: \\underline{${escapeLatex(display)}}}`
+      latexHref(
+        link.url,
+        `${escapeLatex(label)}: \\underline{${escapeLatex(display)}}`
+      )
     );
   });
 
@@ -300,23 +231,35 @@ function formatLegacyContactLine(identity) {
   const parts = [];
   if (identity.email) {
     parts.push(
-      `\\href{mailto:${identity.email}}{Email: \\underline{${escapeLatex(identity.email)}}}`
+      latexHref(
+        `mailto:${identity.email}`,
+        `Email: \\underline{${escapeLatex(identity.email)}}`
+      )
     );
   }
   if (identity.linkedinUrl || identity.linkedin) {
     parts.push(
-      `\\href{${identity.linkedinUrl || ""}}{LinkedIn: \\underline{${escapeLatex(identity.linkedin || "")}}}`
+      latexHref(
+        identity.linkedinUrl || "",
+        `LinkedIn: \\underline{${escapeLatex(identity.linkedin || "")}}`
+      )
     );
   }
   if (identity.xUrl || identity.twitter) {
     const display = identity.twitter ? identity.twitter.replace("@", "") : "";
     parts.push(
-      `\\href{${identity.xUrl || ""}}{X: \\underline{@${escapeLatex(display)}}}`
+      latexHref(
+        identity.xUrl || "",
+        `X: \\underline{@${escapeLatex(display)}}`
+      )
     );
   }
   if (identity.githubUrl || identity.github) {
     parts.push(
-      `\\href{${identity.githubUrl || ""}}{GitHub: \\underline{${escapeLatex(identity.github || "")}}}`
+      latexHref(
+        identity.githubUrl || "",
+        `GitHub: \\underline{${escapeLatex(identity.github || "")}}`
+      )
     );
   }
   return parts.join(" $|$ ");
@@ -448,9 +391,42 @@ function resolveEntitiesByIds(entities, requestedIds = []) {
   return resolved;
 }
 
+function achievementDedupeKey(achievement) {
+  if (typeof achievement === "string") {
+    return sanitizeGeneratedText(achievement).toLowerCase();
+  }
+  if (!achievement || typeof achievement !== "object") return "";
+  return sanitizeGeneratedText(
+    [achievement.area, achievement.text]
+    .filter(Boolean)
+    .join(": ")
+  ).toLowerCase();
+}
+
+function formatAchievement(achievement) {
+  if (typeof achievement === "string") {
+    return boldMetrics(
+      escapeLatex(capitalizeSentenceStart(sanitizeGeneratedText(achievement)))
+    );
+  }
+
+  if (!achievement || typeof achievement !== "object") return "";
+
+  const text = sanitizeGeneratedText(achievement.text || "");
+  if (!text) return "";
+  const area = sanitizeGeneratedText(achievement.area || "");
+  const sentence = area ? `${area}: ${text}` : text;
+  const renderedText = boldMetrics(escapeLatex(capitalizeSentenceStart(sentence)));
+  const renderedLinks = formatLatexLinks(achievement.links);
+  return renderedLinks ? `${renderedText} ${renderedLinks}` : renderedText;
+}
+
 function mergeRoleAchievements(role, customDescriptions = {}, minBullets = 4, maxBullets = 5) {
   const tailored = customDescriptions[role.id] || [];
-  const merged = dedupeStrings([...(tailored || []), ...(role.achievements || [])]);
+  const merged = dedupeItems(
+    [...(tailored || []), ...(role.achievements || [])],
+    achievementDedupeKey
+  );
 
   if (merged.length === 0) return [];
   return merged.slice(0, Math.max(minBullets, Math.min(maxBullets, merged.length)));
@@ -458,18 +434,32 @@ function mergeRoleAchievements(role, customDescriptions = {}, minBullets = 4, ma
 
 const MONTH_TO_INDEX = {
   january: 1,
+  jan: 1,
   february: 2,
+  feb: 2,
   march: 3,
+  mar: 3,
   april: 4,
+  apr: 4,
   may: 5,
   june: 6,
+  jun: 6,
   july: 7,
+  jul: 7,
   august: 8,
+  aug: 8,
   september: 9,
+  sep: 9,
+  sept: 9,
   october: 10,
+  oct: 10,
   november: 11,
+  nov: 11,
   december: 12,
+  dec: 12,
 };
+
+const MONTH_PATTERN = Object.keys(MONTH_TO_INDEX).join("|");
 
 function parsePeriodStart(period) {
   if (!period) return Number.MAX_SAFE_INTEGER;
@@ -478,9 +468,7 @@ function parsePeriodStart(period) {
     .replace(/—/g, "-")
     .toLowerCase();
   const [startPart] = normalized.split("-").map((part) => part.trim());
-  const match = startPart.match(
-    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/
-  );
+  const match = startPart.match(new RegExp(`(${MONTH_PATTERN})\\s+(\\d{4})`));
   if (!match) return Number.MAX_SAFE_INTEGER;
   const monthIndex = MONTH_TO_INDEX[match[1]] || 12;
   const year = Number(match[2]);
@@ -500,9 +488,7 @@ function parsePeriodEnd(period) {
     return Number.MAX_SAFE_INTEGER;
   }
 
-  const match = endPart.match(
-    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/
-  );
+  const match = endPart.match(new RegExp(`(${MONTH_PATTERN})\\s+(\\d{4})`));
   if (!match) return parsePeriodStart(period);
   const monthIndex = MONTH_TO_INDEX[match[1]] || 12;
   const year = Number(match[2]);
@@ -617,6 +603,26 @@ function formatSkills(skillsInput) {
   return lines.length > 0 ? lines.join("\n") : "\\resumeItem{}";
 }
 
+function formatSkillGroups(skillGroups) {
+  if (!Array.isArray(skillGroups)) return "";
+  const lines = skillGroups
+    .map((group) => {
+      const label = group.label || group.name || group.category || "";
+      const skills = Array.isArray(group.skills)
+        ? group.skills
+        : String(group.skills || "")
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean);
+      if (!label || skills.length === 0) return "";
+      const values = dedupeStrings(skills);
+      if (values.length === 0) return "";
+      return `\\resumeItem{\\textbf{${escapeLatex(label)}:} ${escapeLatex(values.join(", "))}}`;
+    })
+    .filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : "";
+}
+
 function formatWorkExperience(roles, customDescriptions = {}, customCompanyDescriptions = {}) {
   return roles
     .map((role) => {
@@ -627,8 +633,9 @@ function formatWorkExperience(roles, customDescriptions = {}, customCompanyDescr
           : role.companyDescription;
       const bullets = achievements
         .map((desc) =>
-          `      \\resumeItem{${boldMetrics(escapeLatex(capitalizeSentenceStart(desc)))}}`
+          `      \\resumeItem{${formatAchievement(desc)}}`
         )
+        .filter((line) => !line.endsWith("{}"))
         .join("\n");
 
       return `    \\resumeSubheading
@@ -648,19 +655,96 @@ function formatProjects(projects, customDescriptions = {}) {
         ...(customDescriptions[proj.id] || []),
         proj.description,
       ]).slice(0, 2);
-      const bullets = descriptions
-        .map((desc) =>
-          `    \\resumeItem{${boldMetrics(escapeLatex(capitalizeSentenceStart(desc)))}}`
-        )
-        .join("\n");
+      const bullets = descriptions.map((desc, index) => {
+        const renderedDesc = boldMetrics(
+          escapeLatex(capitalizeSentenceStart(desc))
+        );
+        const renderedLinks = index === 0 ? formatLatexLinks(proj.links) : "";
+        const suffix = renderedLinks ? ` ${renderedLinks}` : "";
+        return `    \\resumeItem{${renderedDesc}${suffix}}`;
+      });
+
+      const techStack = Array.isArray(proj.techStack)
+        ? proj.techStack.filter(Boolean).join(", ")
+        : proj.techStack;
+      if (techStack) {
+        bullets.push(
+          `    \\resumeItem{\\textbf{Tech stack:} ${escapeLatex(techStack)}}`
+        );
+      }
+      if (bullets.length === 0) {
+        const renderedLinks = formatLatexLinks(proj.links);
+        if (renderedLinks) {
+          bullets.push(`    \\resumeItem{${renderedLinks}}`);
+        }
+      }
 
       return `\\resumeProject
 {${escapeLatex(proj.name)}}{${escapeLatex(proj.period)}}
 \\resumeItemListStart
-${bullets}
+${bullets.join("\n")}
 \\resumeItemListEnd`;
     })
     .join("\n\n");
+}
+
+function formatEducation(education) {
+  if (!Array.isArray(education) || education.length === 0) return "";
+  const items = education
+    .map((item) => {
+      const parts = [];
+      if (item.institution) parts.push(item.institution);
+      const credential = [item.degree, item.field].filter(Boolean).join(", ");
+      if (credential) parts.push(credential);
+      if (item.period) parts.push(item.period);
+      if (item.grade) parts.push(item.grade);
+      const renderedLinks = formatLatexLinks(item.links);
+      const text = parts.join(" --- ");
+      if (!text && !renderedLinks) return "";
+      const linkSuffix = renderedLinks ? ` ${renderedLinks}` : "";
+      return `\\resumeItem{${escapeLatex(text)}${linkSuffix}}`;
+    })
+    .filter(Boolean);
+
+  if (items.length === 0) return "";
+  return `\\section{Education}\\sectionRule
+\\resumeItemListStart
+${items.join("\n")}
+\\resumeItemListEnd`;
+}
+
+function formatPublicPerformance(talks, publications) {
+  const items = [];
+
+  if (Array.isArray(talks)) {
+    talks.forEach((talk) => {
+      const text = [talk.conference, talk.title].filter(Boolean).join(" --- ");
+      const renderedLinks = formatLatexLinks(talk.links);
+      if (!text && !renderedLinks) return;
+      items.push(
+        `\\resumeItem{${escapeLatex(text)}${renderedLinks ? ` ${renderedLinks}` : ""}}`
+      );
+    });
+  }
+
+  if (Array.isArray(publications)) {
+    publications.forEach((publication) => {
+      const text = [publication.title, publication.description]
+        .filter(Boolean)
+        .join(" --- ");
+      const renderedLinks = formatLatexLinks(publication.links);
+      if (!text && !renderedLinks) return;
+      items.push(
+        `\\resumeItem{${escapeLatex(text)}${renderedLinks ? ` ${renderedLinks}` : ""}}`
+      );
+    });
+  }
+
+  if (items.length === 0) return "";
+  return `\\section{Public speaking}\\sectionRule
+\\resumeItemListStart
+${items.join("\n")}
+\\resumeItemListEnd`;
 }
 
 function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir, normalizedProfilePath) {
@@ -744,16 +828,24 @@ function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir, no
   // Replace skills
   template = template.replace(
     /==TOOLS AND STACK==/g,
-    formatSkills(tailoredData.skills || "")
+    tailoredData.skills && String(tailoredData.skills).trim()
+      ? formatSkills(tailoredData.skills)
+      : formatSkillGroups(profile.skillGroups) || formatSkills("")
   );
 
+  const publicPerformanceSection =
+    formatPublicPerformance(profile.talks, profile.publications) ||
+    markdownSectionToLatex("Public speaking", profile.sections.public_speaking || "");
   template = template.replace(
     /==PUBLIC_SPEAKING_SECTION==/g,
-    markdownSectionToLatex("Public speaking", profile.sections.public_speaking || "")
+    publicPerformanceSection
   );
+  const educationSection =
+    formatEducation(profile.education) ||
+    markdownSectionToLatex("Education", profile.sections.education || "");
   template = template.replace(
     /==EDUCATION_SECTION==/g,
-    markdownSectionToLatex("Education", profile.sections.education || "")
+    educationSection
   );
 
   // Write output
@@ -766,9 +858,9 @@ function fillTemplate(templatePath, tailoredDataPath, outputPath, profileDir, no
 // CLI usage
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args.length < 4) {
+  if (args.length < 5) {
     console.error(
-      "Usage: node fill-template.js <template.tex> <tailored-data.json> <output.tex> <profile-dir> [normalized-profile.json]"
+      "Usage: node fill-template.js <template.tex> <tailored-data.json> <output.tex> <profile-dir> <normalized-profile.json>"
     );
     console.error("Example: node fill-template.js cv-template.md data.json output.tex profile/ normalized-profile.json");
     process.exit(1);

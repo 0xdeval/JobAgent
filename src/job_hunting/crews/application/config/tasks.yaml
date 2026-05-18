@@ -89,6 +89,9 @@ cv_task:
        Use IDs derived from company and project names present in the profile brief:
        lowercase names, replace spaces with hyphens, and remove special chars.
        E.g. "Blockscout" → "blockscout".
+       Do not include education, talks, publications, or raw profile YAML in this
+       JSON; the renderer fills education and public speaking sections directly
+       from structured YAML profile data.
        Include at least 4 work experiences. Bold key metrics with **double asterisks**.
        Apply the anti-slop filter: no "spearheaded", "leveraged", "streamlined", etc.
        No PascalCase in sentences.

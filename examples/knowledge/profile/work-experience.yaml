@@ -1,0 +1,17 @@
+roles:
+  - id: blockscout
+    company: Blockscout
+    title: Senior Product Manager
+    period:
+      start: 2022-08
+      end: 2026-04
+    industry: Blockchain / DeFi Infrastructure
+    company_summary: Leading open-source blockchain explorer and SaaS infrastructure platform
+    achievements:
+      - area: Payment product strategy
+        text: Led product strategy for a privacy-focused payment solution and scaled assets under management by 350% YoY.
+        links:
+          - label: Hush
+            url: https://github.com/0xdeval/hush
+      - area: Engagement SaaS add-on
+        text: Launched an upsell add-on for blockchain network operators, driving a 280% MAU surge and 15+ ecosystem partnerships.

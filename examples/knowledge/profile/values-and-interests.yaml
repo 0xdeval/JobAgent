@@ -1,0 +1,9 @@
+values:
+  - id: ownership
+    title: High ownership
+    description: Prefers owning ambiguous product problems from discovery through launch.
+
+interests:
+  - id: privacy-preserving-products
+    title: Privacy-preserving products
+    description: Interested in products that make privacy usable without sacrificing compliance or user experience.

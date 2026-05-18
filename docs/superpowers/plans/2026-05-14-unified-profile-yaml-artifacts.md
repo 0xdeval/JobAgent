@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Archival note: this plan predates the follow-up structured profile section
+> migration. References below to Markdown profile section files or a `summary`
+> profile section are historical plan context; current setup uses
+> `knowledge/profile.yaml` plus allowlisted `knowledge/profile/*.yaml` section
+> files.
+
 **Goal:** Add a private `knowledge/profile.yaml` contract, use it to drive Discovery and Application crew context, and remove person-specific hardcoding from generated CV and cover letter artifacts.
 
 **Architecture:** Add a focused profile context module that validates `profile.yaml`, builds Discovery/Application context slices, and keeps crew-specific section policies in code. Update crew prompts to consume prepared context instead of hardcoded file reads, then update current CV/cover-letter renderers to consume structured identity and section availability while keeping the Node CV renderer in phase 1.
@@ -24,13 +30,13 @@
 - Create `examples/knowledge/profile/skills.md`
   - Example first-class skills section.
 - Modify `README.md` and `docs/setup-guide.md`
-  - Document `profile.yaml`, deprecate `search-criteria.md`, and clarify real `knowledge/` stays private.
+  - Document `profile.yaml`, deprecate `profile.yaml.search`, and clarify real `knowledge/` stays private.
 - Modify `src/job_hunting/flows/discovery_flow.py`
   - Build Discovery context once and pass `discovery_filter_context` to crew kickoff.
 - Modify `src/job_hunting/crews/discovery/config/tasks.yaml`
-  - Replace `knowledge/search-criteria.md` instructions with prepared context inputs.
+  - Replace `knowledge/profile.yaml` instructions with prepared context inputs.
 - Modify `tests/test_discovery_crew_config.py`
-  - Assert prompts use new context and no longer mention `search-criteria.md`.
+  - Assert prompts use new context and no longer mention `profile.yaml.search`.
 - Modify `src/job_hunting/flows/application_flow.py`
   - Build Application context and pass it into Application crew kickoff.
 - Modify `src/job_hunting/crews/application/config/tasks.yaml`
@@ -709,7 +715,7 @@ def test_scrape_task_uses_prepared_filter_context():
     description = _scrape_task_description()
 
     assert "{discovery_filter_context}" in description
-    assert "knowledge/search-criteria.md" not in description
+    assert "knowledge/profile.yaml" not in description
     assert "profile.yaml.search" in description
 
 
@@ -718,14 +724,14 @@ def test_score_task_uses_prepared_scoring_context():
 
     assert "{discovery_filter_context}" in description
     assert "{candidate_scoring_context}" in description
-    assert "knowledge/search-criteria.md" not in description
+    assert "knowledge/profile.yaml" not in description
     assert "knowledge/profile/profile-summary.md" not in description
 ```
 
 Update the existing assertion in `test_scrape_task_handles_one_provided_company` from:
 
 ```python
-assert "knowledge/search-criteria.md" in description
+assert "knowledge/profile.yaml" in description
 ```
 
 to:
@@ -744,9 +750,7 @@ from unittest.mock import patch
 from job_hunting.profile_context import DiscoveryProfileContext
 ```
 
-For each test that captures `kickoff_inputs` (`test_discovery_flow_runs_one_kickoff_per_company`,
-`test_discovery_flow_uses_approved_company_candidates`, and the other kickoff-input assertions
-reported by `rg -n "kickoff_inputs" tests/test_discovery_flow.py`), wrap `flow.run_discovery_crew()`
+For each test that captures `kickoff_inputs`, wrap `flow.run_discovery_crew()`
 with:
 
 ```python
@@ -775,7 +779,7 @@ Run:
 uv run --no-sync pytest tests/test_discovery_crew_config.py tests/test_discovery_flow.py -q
 ```
 
-Expected: FAIL because DiscoveryFlow does not build/pass context and prompts still mention `search-criteria.md`.
+Expected: FAIL because DiscoveryFlow does not build/pass context and prompts still mention `profile.yaml.search`.
 
 - [ ] **Step 4: Update DiscoveryFlow**
 
@@ -829,7 +833,7 @@ Replace the score task criteria reads with:
 Keep the scoring considerations but change:
 
 ```yaml
-excluded criteria from search-criteria.md
+excluded criteria from profile.yaml.search
 ```
 
 to:
@@ -854,8 +858,8 @@ Expected: PASS.
 git add src/job_hunting/flows/discovery_flow.py src/job_hunting/crews/discovery/config/tasks.yaml tests/test_discovery_crew_config.py tests/test_discovery_flow.py
 git commit -m "Feed discovery from profile YAML context" -m "Discovery needs structured search filters and controlled candidate scoring context instead of free-form search-criteria reads.
 
-Constraint: Company sourcing is out of scope and should not influence this integration.
-Rejected: Keeping search-criteria.md in Discovery prompts | it duplicates profile.yaml.search and keeps filters free-form.
+Constraint: Discovery and artifact generation are the only integration targets.
+Rejected: Keeping profile.yaml.search in Discovery prompts | it duplicates profile.yaml.search and keeps filters free-form.
 Confidence: high
 Scope-risk: moderate
 Directive: Build profile context in code before crew kickoff and keep agent file reads narrow.
@@ -1425,13 +1429,13 @@ Co-authored-by: OmX <omx@oh-my-codex.dev>"
 
 - [ ] **Step 1: Update docs**
 
-In `README.md`, replace references that tell users to fill `knowledge/search-criteria.md` with guidance to copy and fill:
+In `README.md`, replace references that tell users to fill `knowledge/profile.yaml` with guidance to copy and fill:
 
 ```text
 examples/knowledge/profile.yaml -> knowledge/profile.yaml
 ```
 
-Mention `search-criteria.md` is deprecated by `profile.yaml.search`.
+Mention `profile.yaml.search` is deprecated by `profile.yaml.search`.
 
 In `docs/setup-guide.md`, add a `knowledge/profile.yaml` section with:
 
@@ -1480,7 +1484,7 @@ git add README.md docs/setup-guide.md
 git commit -m "Document profile YAML setup" -m "Users need one private structured profile file for identity, search filters, and profile section allowlists before discovery and artifact generation run.
 
 Constraint: Real knowledge/profile.yaml stays ignored by git.
-Rejected: Continuing to document search-criteria.md as the primary search control | profile.yaml.search replaces it.
+Rejected: Continuing to document profile.yaml.search as the primary search control | profile.yaml.search replaces it.
 Confidence: high
 Scope-risk: narrow
 Directive: Keep examples public and real candidate knowledge private.

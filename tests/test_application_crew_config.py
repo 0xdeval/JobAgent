@@ -37,6 +37,13 @@ def test_cv_and_cover_letter_tasks_receive_identity_context():
     assert "{identity_context}" in tasks["cover_letter_task"]["description"]
 
 
+def test_cv_task_leaves_structured_sections_to_renderer():
+    description = _tasks_config()["cv_task"]["description"]
+
+    assert "Do not include education, talks, publications, or raw profile YAML" in description
+    assert "renderer fills education and public speaking sections" in description
+
+
 def test_artifact_tasks_use_company_title_filename_base():
     tasks = _tasks_config()
 
