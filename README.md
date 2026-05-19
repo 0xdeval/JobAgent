@@ -1,4 +1,4 @@
-# Job Hunting Crew
+# Job Agent
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![crewAI](https://img.shields.io/badge/crewAI-Agents-111111?style=flat)](https://crewai.com)
