@@ -75,6 +75,54 @@ def test_prep_vacancy_flow_writes_files_and_runs_application(tmp_path, monkeypat
     assert any("CV created" in text for text, _ in notifier.texts)
 
 
+def test_prep_vacancy_flow_can_prepare_from_description_without_url(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(prep_module, "today", lambda: "2026-05-15")
+    application_calls: list[tuple[str, str, object]] = []
+    extractor_inputs: list[str] = []
+
+    class _ApplicationFlow:
+        def __init__(self, vacancy_id: str, date: str, notifier):
+            self.vacancy_id = vacancy_id
+            self.date = date
+            self.notifier = notifier
+
+        def kickoff(self) -> None:
+            application_calls.append((self.vacancy_id, self.date, self.notifier))
+
+    def _extractor(description: str) -> PreparedVacancy:
+        extractor_inputs.append(description)
+        return PreparedVacancy(
+            company="Acme",
+            title="Senior PM",
+            description=description,
+            questions=[],
+            requires_cover_letter=False,
+        )
+
+    description = "Acme is hiring a Senior PM to build product systems."
+    flow = PrepVacancyFlow(
+        url="",
+        chat_id=12345,
+        user_id=777,
+        source_text=description,
+        extractor=_extractor,
+        application_flow_factory=_ApplicationFlow,
+        notifier=_Notifier(),
+    )
+
+    result = flow.kickoff()
+
+    assert result["vacancy_id"] == "acme--senior-pm"
+    assert extractor_inputs == [description]
+    vacancy = json.loads(Path("data/2026-05-15/vacancies/acme--senior-pm.json").read_text())
+    assert vacancy["url"] == ""
+    assert vacancy["description"] == description
+    assert application_calls == [("acme--senior-pm", "2026-05-15", None)]
+
+
 def test_prep_vacancy_flow_does_not_fail_when_completion_notification_times_out(
     tmp_path, monkeypatch
 ):

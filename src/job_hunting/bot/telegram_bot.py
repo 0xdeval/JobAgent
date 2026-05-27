@@ -176,7 +176,39 @@ async def handle_prep_vacancy_command(
     logger.info("Waiting for prep vacancy URL from user %s in chat %s", user_id, chat_id)
 
 
-async def handle_prep_vacancy_url(
+async def handle_prep_by_description_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    logger.info(
+        "Received prep_by_description command from user %s in chat %s",
+        user_id,
+        chat_id,
+    )
+    if not _is_authorized(user_id, chat_id):
+        logger.warning(
+            "Ignoring unauthorized prep_by_description command from user %s in chat %s",
+            user_id,
+            chat_id,
+        )
+        await update.effective_message.reply_text(
+            "You are not authorized to use this command."
+        )
+        return
+
+    key = (int(chat_id), int(user_id))
+    PENDING_PREP_VACANCY.pop(key, None)
+    PENDING_PREP_VACANCY[key] = {"status": "waiting_for_description"}
+    await update.effective_message.reply_text("Send the vacancy description.")
+    logger.info(
+        "Waiting for prep vacancy description from user %s in chat %s",
+        user_id,
+        chat_id,
+    )
+
+
+async def handle_prep_vacancy_message(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     if not update.effective_message or not update.effective_message.text:
@@ -185,16 +217,37 @@ async def handle_prep_vacancy_url(
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     key = (int(chat_id), int(user_id))
-    if key not in PENDING_PREP_VACANCY:
+    pending = PENDING_PREP_VACANCY.get(key)
+    if not pending:
         logger.debug("Ignoring non-prep message from user %s in chat %s", user_id, chat_id)
         return
 
-    url = update.effective_message.text.strip()
-    logger.info("Received prep vacancy URL candidate from user %s in chat %s", user_id, chat_id)
-    if url.startswith("/prep_vacancy"):
-        await handle_prep_vacancy_command(update, context)
+    text = update.effective_message.text.strip()
+    if pending.get("status") == "waiting_for_description":
+        logger.info(
+            "Received prep vacancy description from user %s in chat %s",
+            user_id,
+            chat_id,
+        )
+        if not text:
+            await update.effective_message.reply_text(
+                "Please send the vacancy description."
+            )
+            return
+
+        PENDING_PREP_VACANCY.pop(key, None)
+        await update.effective_message.reply_text(
+            "Started preparing application from description."
+        )
+        threading.Thread(
+            target=_run_prep_vacancy_description_flow,
+            args=(text, int(chat_id), int(user_id)),
+            daemon=True,
+        ).start()
         return
 
+    url = text
+    logger.info("Received prep vacancy URL candidate from user %s in chat %s", user_id, chat_id)
     if not _is_http_url(url):
         await update.effective_message.reply_text("Please send a valid HTTP(S) URL.")
         return
@@ -208,6 +261,12 @@ async def handle_prep_vacancy_url(
     ).start()
 
 
+async def handle_prep_vacancy_url(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    await handle_prep_vacancy_message(update, context)
+
+
 def _run_prep_vacancy_flow(url: str, chat_id: int, user_id: int) -> None:
     from job_hunting.flows.prep_vacancy_flow import PrepVacancyFlow
 
@@ -217,12 +276,35 @@ def _run_prep_vacancy_flow(url: str, chat_id: int, user_id: int) -> None:
         logger.error(f"PrepVacancyFlow failed for {url}: {e}")
 
 
+def _run_prep_vacancy_description_flow(
+    description: str, chat_id: int, user_id: int
+) -> None:
+    from job_hunting.flows.prep_vacancy_flow import (
+        PrepVacancyFlow,
+        extract_vacancy_description,
+    )
+
+    try:
+        PrepVacancyFlow(
+            url="",
+            chat_id=chat_id,
+            user_id=user_id,
+            source_text=description,
+            extractor=extract_vacancy_description,
+        ).kickoff()
+    except Exception as e:
+        logger.error(f"PrepVacancyFlow failed for pasted vacancy description: {e}")
+
+
 def run() -> None:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(TypeHandler(Update, log_update), group=-1)
     app.add_handler(CommandHandler("prep_vacancy", handle_prep_vacancy_command))
     app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prep_vacancy_url)
+        CommandHandler("prep_by_description", handle_prep_by_description_command)
+    )
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prep_vacancy_message)
     )
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_error_handler(log_error)

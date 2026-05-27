@@ -125,22 +125,63 @@ def extract_direct_vacancy(url: str) -> PreparedVacancy:
     return parse_direct_vacancy_result(result)
 
 
+def extract_vacancy_description(description: str) -> PreparedVacancy:
+    agent = Agent(
+        role="Vacancy Description Extractor",
+        goal="Extract structured application preparation data from a pasted vacancy description.",
+        backstory=(
+            "You read only the vacancy description supplied by the user and return "
+            "the structured fields needed by the application generation flow."
+        ),
+        llm=get_llm(),
+        tools=[],
+        verbose=True,
+        allow_delegation=False,
+    )
+    task = Task(
+        description=(
+            "Use only this pasted vacancy description. Do not scrape, browse, search, "
+            "or use external tools:\n\n{description}\n\n"
+            "Extract company, title, full job description, explicit application "
+            "questions, and whether the text explicitly asks for a cover letter.\n"
+            "Return strict JSON with keys: company, title, description, questions, "
+            "requires_cover_letter."
+        ),
+        expected_output=(
+            '{"company":"Acme","title":"Senior PM","description":"Full job text",'
+            '"questions":["Why this role?"],"requires_cover_letter":false}'
+        ),
+        agent=agent,
+    )
+    result = Crew(
+        agents=[agent],
+        tasks=[task],
+        process=Process.sequential,
+        verbose=True,
+    ).kickoff(inputs={"description": description})
+    return parse_direct_vacancy_result(result)
+
+
 class PrepVacancyFlow(Flow):
+    tracing = False
+
     def __init__(
         self,
         url: str,
         chat_id: int | str,
         user_id: int | str,
         date: str | None = None,
+        source_text: str | None = None,
         extractor: Callable[[str], PreparedVacancy] | None = None,
         application_flow_factory=ApplicationFlow,
         notifier: Notifier | None = None,
     ):
-        super().__init__()
+        super().__init__(tracing=False, suppress_flow_events=True)
         self._url = url
         self._chat_id = chat_id
         self._user_id = user_id
         self._date = date
+        self._source_text = source_text
         self._extractor = extractor or extract_direct_vacancy
         self._application_flow_factory = application_flow_factory
         self._notifier = notifier or TelegramNotifierTool()
@@ -157,7 +198,7 @@ class PrepVacancyFlow(Flow):
 
         run_date = self._date or today()
         try:
-            prepared = self._extractor(self._url)
+            prepared = self._extractor(self._source_text or self._url)
         except Exception as exc:
             self._notify(
                 f"Failed to extract vacancy details: {type(exc).__name__}: {exc}"
@@ -201,6 +242,9 @@ class PrepVacancyFlow(Flow):
         return self._run_application(run_date, vacancy_id, vacancy, score)
 
     def _find_existing_complete_record(self):
+        if not self._url:
+            return None
+
         for vacancy_file in all_vacancy_files():
             try:
                 vacancy = json.loads(vacancy_file.read_text(encoding="utf-8"))

@@ -40,6 +40,21 @@ def test_prep_vacancy_command_enters_waiting_state(monkeypatch):
     assert "Send the vacancy URL" in update.message.replies[-1]
 
 
+def test_prep_by_description_command_enters_waiting_state(monkeypatch):
+    monkeypatch.setattr(telegram_bot, "TELEGRAM_CHAT_ID", "12345")
+    telegram_bot.PENDING_PREP_VACANCY.clear()
+    update = _update("/prep_by_description")
+
+    import asyncio
+
+    asyncio.run(telegram_bot.handle_prep_by_description_command(update, SimpleNamespace()))
+
+    assert telegram_bot.PENDING_PREP_VACANCY[(12345, 777)] == {
+        "status": "waiting_for_description"
+    }
+    assert "Send the vacancy description" in update.message.replies[-1]
+
+
 def test_repeating_prep_vacancy_resets_same_user_state(monkeypatch):
     monkeypatch.setattr(telegram_bot, "TELEGRAM_CHAT_ID", "12345")
     telegram_bot.PENDING_PREP_VACANCY.clear()
@@ -115,6 +130,36 @@ def test_valid_url_starts_background_flow_and_clears_state(monkeypatch):
     assert "Started preparing" in update.message.replies[-1]
 
 
+def test_valid_description_starts_background_flow_and_clears_state(monkeypatch):
+    monkeypatch.setattr(telegram_bot, "TELEGRAM_CHAT_ID", "12345")
+    telegram_bot.PENDING_PREP_VACANCY.clear()
+    telegram_bot.PENDING_PREP_VACANCY[(12345, 777)] = {
+        "status": "waiting_for_description"
+    }
+    calls: list[dict] = []
+
+    class _Thread:
+        def __init__(self, target, args, daemon):
+            calls.append({"target": target, "args": args, "daemon": daemon})
+
+        def start(self):
+            calls[-1]["started"] = True
+
+    monkeypatch.setattr(telegram_bot.threading, "Thread", _Thread)
+    description = "Acme is hiring a Senior PM to build product systems."
+    update = _update(description)
+
+    import asyncio
+
+    asyncio.run(telegram_bot.handle_prep_vacancy_message(update, SimpleNamespace()))
+
+    assert (12345, 777) not in telegram_bot.PENDING_PREP_VACANCY
+    assert calls[0]["args"] == (description, 12345, 777)
+    assert calls[0]["daemon"] is True
+    assert calls[0]["started"] is True
+    assert "Started preparing application from description" in update.message.replies[-1]
+
+
 def test_run_registers_valid_command_handlers(monkeypatch):
     app = MagicMock()
     builder = MagicMock()
@@ -129,6 +174,7 @@ def test_run_registers_valid_command_handlers(monkeypatch):
     ]
     assert registered_handler_types == [
         "TypeHandler",
+        "CommandHandler",
         "CommandHandler",
         "MessageHandler",
         "CallbackQueryHandler",
